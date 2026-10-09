@@ -1,0 +1,16 @@
+{
+  "name": "personal-planner",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Personal Planner: timetable, plans, notes, reading list and jobs, as an installable web app.",
+  "scripts": {
+    "build": "esbuild src/ai.js --bundle --minify --format=iife --target=es2020 --outfile=ai.bundle.js",
+    "serve": "python3 -m http.server 8080"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.130.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}
