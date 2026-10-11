@@ -194,6 +194,55 @@ label.f .hint{font-weight:400;color:var(--muted);font-size:.78rem}
 .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:.9rem;z-index:60;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.toast{animation:up .2s ease-out}@keyframes up{from{transform:translate(-50%,8px);opacity:0}}}
+
+/* ---- cleaner look: fewer lines, softer cards, more air ---- */
+:root{ --bg:#f6f7fb; --surface-2:#eff1f6; --line:#e5e8ef; --card-shadow:0 1px 2px rgba(20,28,45,.04),0 2px 8px rgba(20,28,45,.05); --radius:18px }
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){ --bg:#0f1218; --surface-2:#1c222d; --line:#262d3a; --card-shadow:0 1px 2px rgba(0,0,0,.3) }}
+:root[data-theme="dark"]{ --bg:#0f1218; --surface-2:#1c222d; --line:#262d3a; --card-shadow:0 1px 2px rgba(0,0,0,.3) }
+.wrap{gap:20px;padding-block:20px 56px}
+header.top{padding-bottom:4px}
+h1{font-size:1.45rem}
+nav.tabs{background:transparent;padding:0;gap:2px}
+nav.tabs button{padding:7px 12px;border-radius:99px;font-weight:500}
+nav.tabs button:hover{color:var(--fg)}
+nav.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);box-shadow:none}
+.panel,.plan,.note,.gridbox,.month,.blockrow,.arow{border-color:transparent;box-shadow:var(--card-shadow)}
+.panel,.plan,.gridbox,.month{border-radius:var(--radius)}
+.panel{padding:20px}
+.btn{border-radius:99px;padding:7px 15px}
+.btn.sm{padding:5px 12px}
+.save-pill{border:0;background:var(--surface-2)}
+.banner{border-radius:var(--radius)}
+textarea,input[type=text],input[type=number],input[type=date],input[type=time],select{border-radius:11px;background:var(--surface-2);border-color:transparent}
+textarea:focus,input:focus,select:focus{background:var(--surface);border-color:var(--accent);outline:none}
+/* home */
+.hello{display:flex;flex-direction:column;gap:2px}
+.hello h2{font-size:1.6rem}
+.home{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px;align-items:start}
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card.wide{grid-column:1/-1}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-h button.go{border:0;background:none;padding:0;font-family:var(--display);font-weight:700;font-size:1.05rem;display:inline-flex;align-items:center;gap:6px;color:var(--fg)}
+.card-h button.go::after{content:"→";color:var(--muted);font-family:var(--body);font-weight:400;transition:transform .15s}
+.card-h button.go:hover::after{transform:translateX(3px);color:var(--accent)}
+.hrow{display:flex;align-items:center;gap:10px;min-width:0;border:0;background:none;padding:6px 0;text-align:left;width:100%;cursor:pointer;border-radius:8px}
+.hrow:hover b{color:var(--accent)}
+.hrow .bar{width:4px;align-self:stretch;border-radius:3px;flex:none}
+.hrow .main{min-width:0;flex:1;display:flex;flex-direction:column}
+.hrow b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow.shade .bar{background:repeating-linear-gradient(45deg,var(--stripe) 0 2px,var(--stripe-bg) 2px 5px)}
+.todo{display:flex;align-items:center;gap:10px;padding:5px 0}
+.todo input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
+.todo span{flex:1;min-width:0;overflow-wrap:anywhere}
+.todo.done span{text-decoration:line-through;color:var(--muted)}
+.todo .x{border:0;background:none;color:var(--muted);padding:2px 6px;border-radius:6px;opacity:.6}
+.todo .x:hover{opacity:1;color:var(--warn)}
+.todo-add{display:flex;gap:8px}
+.weeknav{display:flex;align-items:center;gap:4px;font-size:.85rem;color:var(--muted)}
+.weeknav button{border:0;background:var(--surface-2);border-radius:99px;width:26px;height:26px;display:grid;place-items:center}
+.minis{display:flex;gap:10px;flex-wrap:wrap}
+.statrow{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.statrow b{color:var(--fg);font-family:var(--mono);font-weight:500}
 </style>
 </head>
 <body>
@@ -202,7 +251,8 @@ label.f .hint{font-weight:400;color:var(--muted);font-size:.78rem}
   <header class="top">
     <div class="brand"><h1>Personal Planner</h1><span class="save-pill" id="savePill">Loading…</span></div>
     <nav class="tabs" role="tablist" id="tabs">
-      <button role="tab" data-tab="calendar" aria-selected="true">Timetable</button>
+      <button role="tab" data-tab="home" aria-selected="true">Home</button>
+      <button role="tab" data-tab="calendar" aria-selected="false">Timetable</button>
       <button role="tab" data-tab="plans" aria-selected="false">Plans</button>
       <button role="tab" data-tab="notes" aria-selected="false">Notes</button>
       <button role="tab" data-tab="reading" aria-selected="false">Reading</button>
@@ -254,7 +304,7 @@ const blank = () => ({
     {id:"travel",name:"Travel",color:"#868e96"}
   ],
   travel: TRAVEL_DEFAULT(),
-  events:[], plans:[], blocks:[], notes:[], sections:[], books:[], jobs:[]
+  events:[], plans:[], blocks:[], notes:[], sections:[], books:[], jobs:[], todos:[]
 });
 function TRAVEL_DEFAULT(){ return {
   trainBefore:90, buffer:5, ride:9, home:60,
@@ -553,7 +603,7 @@ Reply with JSON only: {"section": "..."}`;
 }
 
 // ---------- UI shell ----------
-let tab = "calendar", calView = (window.innerWidth<640 ? "day" : "week"), cursor = new Date(); cursor.setHours(0,0,0,0);
+let tab = "home", todoWeek = null, calView = (window.innerWidth<640 ? "day" : "week"), cursor = new Date(); cursor.setHours(0,0,0,0);
 let noteFilter = "All";
 function toast(msg){ document.querySelectorAll(".toast").forEach(x=>x.remove()); const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
 $("#tabs").addEventListener("click", e => { const b=e.target.closest("button[data-tab]"); if(!b) return; tab=b.dataset.tab; render(); });
@@ -566,12 +616,82 @@ function render(){
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===tab)));
   $("#exampleBanner").hidden = !S.examples;
   const v = $("#view");
-  if(tab==="calendar") renderCalendar(v);
+  if(tab==="home") renderHome(v);
+  else if(tab==="calendar") renderCalendar(v);
   else if(tab==="plans") renderPlans(v);
   else if(tab==="notes") renderNotes(v);
   else if(tab==="reading") renderReading(v);
   else if(tab==="jobs") renderJobs(v);
   else renderFree(v);
+}
+
+// ---------- home ----------
+function greeting(){ const h=new Date().getHours(); return h<12?"Good morning":h<18?"Good afternoon":"Good evening"; }
+function nextLecture(){
+  const now=new Date(), nowM=now.getHours()*60+now.getMinutes();
+  for(let i=0;i<21;i++){ const ds=ymd(addDays(now,i));
+    const l=occOn(ds).filter(x=>x.lecture && (i>0 || toMin(x.start)>nowM)).sort((a,b)=>a.start.localeCompare(b.start))[0];
+    if(l){ const bus=occOn(ds).find(x=>x.travelFor===l.id); return {l, ds, bus}; } }
+  return null;
+}
+function renderHome(v){
+  const td=todayStr(), wk=todoWeek||ymd(startOfWeek(new Date())), thisWk=ymd(startOfWeek(new Date()));
+  const evs=eventsOn(td), shade=travelShade(td), bl=blocksOn(td);
+  const rows=[...evs.map(e=>({k:toMin(e.start),h:`<button class="hrow" data-ev="${e.id}" data-o="${e._occ||""}"><span class="bar" style="background:${colorOf(e)}"></span><span class="main"><b>${esc(e.topic||e.title)}</b><span class="small muted mono">${e.start}–${e.end}${e.done?" · done":""}</span></span></button>`})),
+    ...shade.map(x=>({k:x.s,h:`<div class="hrow shade" style="cursor:default"><span class="bar"></span><span class="main"><b class="muted" style="font-weight:500">${esc(x.b.label)}</b><span class="small muted mono">${fromMin(x.s)}–${fromMin(Math.min(x.e,1439))}</span></span></div>`}))].sort((a,b)=>a.k-b.k);
+  const nl=nextLecture();
+  const todos=S.todos.filter(t=>t.week===wk), left=todos.filter(t=>!t.done).length;
+  const prevLeft=S.todos.filter(t=>t.week<wk && !t.done && wk===thisWk);
+  const wkEnd=addDays(parse(wk),6), wkLabel = wk===thisWk ? "This week" : wk===ymd(addDays(parse(thisWk),7)) ? "Next week" : wk===ymd(addDays(parse(thisWk),-7)) ? "Last week" : `${parse(wk).getDate()} ${MONTHS[parse(wk).getMonth()].slice(0,3)} – ${wkEnd.getDate()} ${MONTHS[wkEnd.getMonth()].slice(0,3)}`;
+  const reading=S.books.filter(b=>b.status==="reading"), want=S.books.filter(b=>b.status==="want").length;
+  const jobsDue=S.jobs.filter(j=>j.status==="todo").sort((a,b)=>(a.deadline||"9999").localeCompare(b.deadline||"9999")).slice(0,3);
+  const jc=k=>S.jobs.filter(j=>j.status===k).length;
+  const notes=[...S.notes].sort((a,b)=>b.created-a.created).slice(0,3);
+  v.innerHTML = `<div class="stack" style="gap:18px">
+    <div class="hello"><h2>${greeting()}</h2><span class="muted">${(n=>["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][n.getDay()]+" "+n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear())(new Date())}</span></div>
+    <div class="home">
+      <section class="card">
+        <div class="card-h"><button class="go" data-go="calendar" data-day="1">Today</button><span class="small muted">${evs.length} item${evs.length===1?"":"s"}</span></div>
+        <div>${rows.length?rows.map(r=>r.h).join(""):`<p class="muted" style="margin:0">Nothing booked today.${bl.some(x=>x.s<=0&&x.e>=1439)?" It's a rest day.":""}</p>`}</div>
+        ${nl?`<p class="small muted" style="margin:0">Next lecture: <b style="color:var(--fg)">${esc(nl.l.title)}</b>, ${nl.ds===td?"today":fmtDate(nl.ds)} at ${nl.l.start}${nl.bus?`. Bus at ${nl.bus.start}`:""}</p>`:""}
+      </section>
+      <section class="card">
+        <div class="card-h"><h3>To-do</h3><div class="weeknav"><button id="tw-prev" aria-label="Previous week">‹</button><span style="min-width:92px;text-align:center">${wkLabel}</span><button id="tw-next" aria-label="Next week">›</button></div></div>
+        <div>${todos.length?todos.map(t=>`<label class="todo${t.done?" done":""}" data-t="${t.id}"><input type="checkbox"${t.done?" checked":""}><span>${esc(t.text)}</span><button type="button" class="x" aria-label="Remove">✕</button></label>`).join(""):`<p class="muted" style="margin:0">Nothing on the list for ${wkLabel.toLowerCase()} yet.</p>`}</div>
+        ${prevLeft.length?`<button class="btn sm ghost" id="tw-carry" style="align-self:flex-start">Bring over ${prevLeft.length} unfinished from earlier weeks</button>`:""}
+        <form class="todo-add" id="tw-f"><input type="text" id="tw-text" placeholder="Add a to-do" aria-label="New to-do"><button class="btn sm primary" type="submit">Add</button></form>
+        ${todos.length?`<span class="small muted">${todos.length-left} of ${todos.length} done</span>`:""}
+      </section>
+      <section class="card">
+        <div class="card-h"><button class="go" data-go="plans">Plans</button><span class="small muted">${S.plans.length}</span></div>
+        ${S.plans.length?S.plans.slice(0,4).map(p=>{ const pc=Math.min(100,Math.round(planDoneMin(S,p)/Math.max(1,p.hours*60)*100)); return `<button class="hrow" data-go="plans" style="flex-direction:column;align-items:stretch;gap:6px"><span style="display:flex;justify-content:space-between;gap:8px"><b>${esc(p.title)}</b><span class="small muted mono">${pc}%</span></span><span class="progress"><span style="display:block;height:100%;width:${pc}%;background:${p.color};border-radius:99px"></span></span><span class="small muted">Due ${fmtDate(p.deadline)}</span></button>`; }).join(""):`<p class="muted" style="margin:0">No plans yet. Describe a goal and it gets spread over your timetable.</p>`}
+      </section>
+      <section class="card">
+        <div class="card-h"><button class="go" data-go="notes">Notes</button><span class="small muted">${S.notes.length}</span></div>
+        ${notes.length?notes.map(n=>`<button class="hrow" data-go="notes" data-sec="${esc(n.section||"")}"><span class="main"><b style="font-weight:500">${esc(n.text)}</b><span class="small muted">${esc(n.section||"Unsorted")}</span></span></button>`).join(""):`<p class="muted" style="margin:0">No notes yet.</p>`}
+      </section>
+      <section class="card">
+        <div class="card-h"><button class="go" data-go="reading">Reading</button><span class="small muted">${want} to read</span></div>
+        ${reading.length?`<div class="minis">${reading.slice(0,4).map(b=>`<button class="hrow" data-go="reading" style="width:auto;padding:0">${coverHTML(b,"sm")}<span class="main" style="max-width:140px"><b>${esc(b.title)}</b><span class="small muted">${esc(b.author||"")}</span></span></button>`).join("")}</div>`:`<p class="muted" style="margin:0">${want?`Nothing on the go. ${want} book${want>1?"s":""} waiting.`:"Your reading list is empty."}</p>`}
+      </section>
+      <section class="card">
+        <div class="card-h"><button class="go" data-go="jobs">Jobs</button></div>
+        <div class="statrow"><span><b>${jc("todo")}</b> to apply</span><span><b>${jc("applied")}</b> applied</span><span><b>${jc("interview")}</b> interview</span><span><b>${jc("offer")}</b> offer</span></div>
+        ${jobsDue.map(j=>`<button class="hrow" data-go="jobs"><span class="main"><b>${esc(j.role||"Job")}${j.company?" · "+esc(j.company):""}</b><span class="small muted">${j.deadline?"Apply by "+fmtDate(j.deadline):"No deadline"}</span></span></button>`).join("")}
+      </section>
+    </div></div>`;
+  v.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{ tab=b.dataset.go;
+    if(b.dataset.day){ calView="day"; cursor=new Date(); cursor.setHours(0,0,0,0); }
+    if(b.dataset.sec!==undefined && typeof noteFilter!=="undefined") noteFilter=b.dataset.sec||"All";
+    render(); window.scrollTo(0,0); });
+  v.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>openEvent(S.events.find(x=>x.id===b.dataset.ev), null, null, b.dataset.o||null));
+  const setWk=n=>{ todoWeek=ymd(addDays(parse(wk),7*n)); render(); };
+  $("#tw-prev").onclick=()=>setWk(-1); $("#tw-next").onclick=()=>setWk(1);
+  $("#tw-f").onsubmit=e=>{ e.preventDefault(); const t=$("#tw-text").value.trim(); if(!t) return; S.todos.push({id:uid(),text:t,week:wk,done:false}); save(); render(); const i=$("#tw-text"); if(i) i.focus(); };
+  v.querySelectorAll("[data-t]").forEach(r=>{ const t=S.todos.find(x=>x.id===r.dataset.t);
+    r.querySelector("input").onchange=e=>{ t.done=e.target.checked; save(); render(); };
+    r.querySelector(".x").onclick=e=>{ e.preventDefault(); S.todos=S.todos.filter(x=>x!==t); save(); render(); }; });
+  const c=$("#tw-carry"); if(c) c.onclick=()=>{ prevLeft.forEach(t=>t.week=wk); save(); render(); toast("Brought over "+prevLeft.length); };
 }
 
 // ---------- calendar ----------
