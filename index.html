@@ -655,7 +655,7 @@ function openEvent(ev, date, start, occ){
 }
 
 // ---------- plans ----------
-let draftColor = SWATCH[5];
+let draftColor = null;
 let draft = null, draftText = "", reading = false;
 const UNIT_MIN = {page:4,chapter:90,lecture:75,video:20,question:3,problem:10,exercise:10,module:180,reading:60,lesson:45,topic:120,article:30,essay:300,flashcard:1,quiz:30,mock:180,book:600,case:45,unit:90,section:45,slide:2};
 const UNIT_RE = "pages?|chapters?|lectures?|videos?|questions?|problems?|exercises?|modules?|readings?|lessons?|topics?|articles?|essays?|flashcards?|quiz(?:zes)?|mocks?|books?|cases?|units?|sections?|slides?";
@@ -709,10 +709,49 @@ function localParsePlan(text){
   if(/(only|just)\s+(on\s+)?weekends?|weekends only/.test(t)) out.days=[0,6];
   if(/\b(sundays|sunday)\b/.test(t) && /\b(no|not|never|except|without)\b[^.]*sunday/.test(t)) out.days=out.days.filter(d=>d!==0);
   if(/\bmornings?\b/.test(t)) out.pref="morning"; else if(/\bafternoons?\b/.test(t)) out.pref="afternoon"; else if(/\b(evenings?|nights?|after work)\b/.test(t)) out.pref="evening";
-  let title=text.split(/[,.;:\n(]|\s[-–]\s|\s(?:by|until|before|due|over|within)\s|\sin\s+(?:\d|a\s|one|two|three|four|five|six)/i)[0].trim()
-    .replace(/^\d+(?:[.,]\d+)?\s*(?:hours?|hrs?|h)\b(?:\s*(?:a|per)\s*(?:day|week))?\s*(?:of\s+)?/i,"").trim().slice(0,50);
-  out.title=title? title[0].toUpperCase()+title.slice(1) : "My plan";
+  out.title=planTitle(text);
   return out;
+}
+// Turns a free-text description into a short plan name, e.g. "Finish CFA course, 300 pages by 20 Dec" -> "CFA Course".
+const SMALL_WORDS = new Set(["of","and","for","the","a","an","to","in","on","at","with","or"]);
+const GENERIC = new Set(["revision","revising","reading","study","studying","lectures","lecture","course","work","practice","practise","homework","exercises","questions","notes","pages","chapters","videos","modules","prep","preparation"]);
+function titleCase(str){
+  return str.split(/\s+/).filter(Boolean).map((w,i)=>{
+    if(/[A-Z].*[A-Z]|\d/.test(w)) return w;            // keep acronyms like CFA, ML, IELTS
+    const lw=w.toLowerCase();
+    if(i>0 && SMALL_WORDS.has(lw)) return lw;
+    return lw[0].toUpperCase()+lw.slice(1);
+  }).join(" ");
+}
+function planTitle(text){
+  const q=text.match(/[“"‘']([^”"’']{2,60})[”"’']/);   // a quoted book or course title wins
+  if(q) return q[1].trim();
+  let s=text.replace(/\b(?:i\s+)?(?:really\s+)?(?:need|have|want|must|should|got)\s+to\b|\bi'?d like to\b|\bplease\b/gi," ");
+  s=s.split(/[,.;:\n(]|\s[-–]\s|\s(?:by|until|till|before|due|over|within|starting|from)\s|\sin\s+(?:the\s+next\s+)?(?:\d|a\s|one|two|three|four|five|six|eight|ten|twelve)/i)[0];
+  s=s.replace(new RegExp("\\b\\d+(?:[.,]\\d+)?\\s*(?:hours?|hrs?|h|mins?|minutes?|"+UNIT_RE+")\\b(?:\\s*(?:a|per|each|every)\\s*(?:day|week|session))?(?:\\s*of)?","gi")," ");
+  s=s.replace(/\b(?:the\s+)?(?:rest|remainder|remaining)\s+of\b/gi," ");
+  for(let k=0;k<3;k++) s=s.trim().replace(/^(?:finish(?:ing)?|complete|completing|do|doing|read(?:ing)?|study(?:ing)?|watch(?:ing)?|learn(?:ing)?|revise|review|practi[cs]e|work\s+on|prepare\s+for|prep\s+for|get\s+through|go\s+through|go\s+over|catch\s+up\s+on|start|continue|keep\s+up)\b\s*/i,"")
+    .replace(/^(?:for|towards?)\s+/i,"").replace(/^(?:my|the|a|an|all|some|this|that|these|those)\s+/i,"");
+  s=s.replace(/\s+(?:for|on|about)\s*$/i,"").replace(/\s{2,}/g," ").trim();
+  // "revision" alone says little: borrow what it's for, e.g. "before my maths exam" -> "Maths Exam Revision"
+  if(!s || GENERIC.has(s.toLowerCase())){
+    const ctx=text.match(/\b(?:for|before)\s+(?:my|the|a)?\s*([\w-]+(?:\s+[\w-]+)?\s+(?:exam|test|interview|presentation|assessment|module))\b/i) || text.match(/\b(?:my|the)\s+([\w-]+\s+)?(exam|test|interview)\b/i);
+    const what=ctx?(ctx[2]?((ctx[1]||"")+ctx[2]):ctx[1]).replace(/^(?:my|the|a)\s+/i,"").trim():"";
+    s = what ? (s ? what+" "+s : what) : (s || "");
+  }
+  if(/^\s*(?:revise|revising|revision)\b/i.test(text) && s && !/revision/i.test(s)) s+=" revision";
+  s=s.split(/\s+/).slice(0,5).join(" ");
+  return s ? titleCase(s) : "New plan";
+}
+// New plans get a colour no other plan or colour group is using yet.
+const PLAN_PALETTE = ["#7048e8","#e8590c","#0c8599","#c2255c","#2f9e44","#b08800","#1971c2","#9c36b5","#d9480f","#087f5b","#5c7cfa","#e64980","#74b816","#f08c00","#3bc9db","#845ef7"];
+function hslHex(h,s,l){ s/=100; l/=100; const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l), f=n=>l-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1)); return "#"+[f(0),f(8),f(4)].map(x=>Math.round(x*255).toString(16).padStart(2,"0")).join(""); }
+function nextPlanColor(){
+  const used=new Set([...S.plans.map(p=>(p.color||"").toLowerCase()), ...S.categories.map(c=>(c.color||"").toLowerCase())]);
+  const free=PLAN_PALETTE.find(c=>!used.has(c.toLowerCase()));
+  if(free) return free;
+  for(let i=0;i<360;i++){ const c=hslHex((S.plans.length*137.5+i*23)%360,62,46); if(!used.has(c)) return c; }
+  return PLAN_PALETTE[S.plans.length%PLAN_PALETTE.length];
 }
 async function claudeParsePlan(text){
   const sample=await getSample(); if(!sample) return null;
@@ -721,7 +760,7 @@ async function claudeParsePlan(text){
 ${JSON.stringify(text)}
 Work out what they mean. They may give hours of study, a number of pages, chapters, lectures, questions or anything else, and a deadline or time period in any wording. Estimate realistic time per item when they don't say (e.g. dense study reading about 4-6 min per page).
 Reply with JSON only, no prose:
-{"title": short name for the plan (max 5 words),
+{"title": a short, clear name for the plan in Title Case (2-4 words), like "CFA Level I", "Spanish Practice", "Maths Exam Revision" or a book title. Name the goal; never copy their sentence, deadline or amounts,
  "totalHours": number,
  "unit": {"name": plural item name like "pages", "total": number, "minutesEach": number} or null if they described it only in hours,
  "deadline": "YYYY-MM-DD" or null if no date or period was given,
@@ -769,7 +808,7 @@ function renderPlans(v){
   ta.onkeydown=e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); $("#p-read").click(); } };
   $("#p-read").onclick=async()=>{
     const text=ta.value.trim(); if(!text){ toast("Write what you need to do first"); return; }
-    draftText=text; draft=localParsePlan(text); draft.summary=null; reading=true; render();
+    draftText=text; draftColor=nextPlanColor(); draft=localParsePlan(text); draft.summary=null; reading=true; render();
     const c=await claudeParsePlan(text);
     reading=false; if(draft) draft=mergeParsed(draft,c);
     if(tab==="plans") render();
@@ -798,7 +837,8 @@ function renderDraft(){
         <label class="f">Best time<select id="p-pref">${["any","morning","afternoon","evening"].map(x=>`<option value="${x}"${x===d.pref?" selected":""}>${x[0].toUpperCase()+x.slice(1)}</option>`).join("")}</select></label>
       </div>
       <div class="days" id="p-days">${[1,2,3,4,5,6,0].map(x=>`<label><input type="checkbox" value="${x}"${d.days.includes(x)?" checked":""}><span>${DOW[x]}</span></label>`).join("")}</div>
-      <div class="swatches" id="p-col">${SWATCH.map(c=>`<button type="button" data-c="${c}" style="background:${c}" aria-label="Colour ${c}" aria-pressed="${c===draftColor}"></button>`).join("")}</div>
+      <div class="swatches" id="p-col">${[draftColor,...PLAN_PALETTE.filter(c=>c!==draftColor && !S.plans.some(p=>p.color===c))].slice(0,10).map(c=>`<button type="button" data-c="${c}" style="background:${c}" aria-label="Colour ${c}" aria-pressed="${c===draftColor}"></button>`).join("")}<label class="btn sm ghost" style="padding:2px 8px">Custom <input type="color" id="p-colc" value="${draftColor}" aria-label="Pick any colour" style="width:26px;height:22px;padding:0;border:0;background:none;vertical-align:middle"></label></div>
+      <p class="small muted" style="margin:0">New plans get their own colour. Plans already using a colour aren't offered.</p>
     </div></details>
     <div class="preview" id="p-prev"></div>
     <div class="actions"><button class="btn primary" type="submit">Add to my timetable</button><button class="btn" type="button" id="p-cancel">Cancel</button></div>
@@ -815,6 +855,7 @@ function renderDraft(){
   };
   const unitHours=()=>{ if(d.unit){ $("#p-hours").value=Math.round((+$("#p-ut").value)*(+$("#p-um").value)/60*2)/2; } sync(); };
   el.querySelectorAll("input,select").forEach(i=>i.addEventListener("input", (i.id==="p-ut"||i.id==="p-um")?unitHours:sync)); sync();
+  $("#p-colc").oninput=e=>{ draftColor=e.target.value; $("#p-col").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false")); };
   $("#p-col").onclick=e=>{ const b=e.target.closest("button"); if(!b) return; draftColor=b.dataset.c; $("#p-col").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); };
   $("#p-cancel").onclick=()=>{ draft=null; render(); };
   $("#pf").onsubmit=e=>{ e.preventDefault(); sync();
