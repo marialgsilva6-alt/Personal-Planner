@@ -671,7 +671,7 @@ function openEvent(ev, date, start, occ){
     </div>
     ${series&&!isNew?`<p class="small muted" style="margin:0">Changes here apply to every repeat.</p>`:""}
     <label class="f">Colour group<select id="ev-cat">${catOptions(e.cat)}</select></label>
-    <label class="catrow" id="ev-trw"${e.cat==="lecture"?"":" hidden"}><input type="checkbox" id="ev-tr"${e.noTravel?"":" checked"}> Add my bus and train</label>
+    <label class="catrow" id="ev-trw"${e.travelFor?" hidden":""}><input type="checkbox" id="ev-tr"${e.cat==="lecture"&&!e.noTravel?" checked":""}> This is a lecture (add my bus and train)</label>
     <p class="small muted" id="ev-trinfo" style="margin:0" hidden></p>
     ${e.travelFor?`<p class="small muted" style="margin:0">This is the travel for a lecture. It updates by itself when you change the lecture.</p>`:""}`}
     ${!isNew?`<label class="catrow"><input type="checkbox" id="ev-done"${isDone?" checked":""}> Mark ${series?"this one ("+fmtDate(occDate)+")":""} as done</label>`:""}
@@ -682,13 +682,15 @@ function openEvent(ev, date, start, occ){
       const hit = ds&&s&&en ? blocksOn(ds).find(x=>toMin(s)<x.e && toMin(en)>x.s) : null;
       w.hidden=!hit; if(hit) w.textContent=`This falls in your free time ("${hit.b.label}"). You can still add it.`; };
     ["#ev-date","#ev-start","#ev-end"].forEach(s=>$(s,m).addEventListener("input",check)); check();
-    const trInfo=()=>{ const c=$("#ev-cat",m); if(!c) return; const on=c.value==="lecture"; $("#ev-trw",m).hidden=!on;
+    const trInfo=()=>{ const c=$("#ev-cat",m); if(!c) return; const on=$("#ev-tr",m).checked;
       const i=$("#ev-trinfo",m), ds=$("#ev-date",m).value, s=$("#ev-start",m).value;
-      if(!on||!$("#ev-tr",m).checked||!ds||!s){ i.hidden=true; return; }
+      if(!on||!ds||!s){ i.hidden=true; return; }
       const r=travelFor(ds,s); i.hidden=false;
       i.textContent = r.none ? `Train at ${fromMin(Math.max(r.train,0))}, but no bus gets you to the station in time on this day. Add bus times in Free time & ${APP_SET}.` : `Bus at ${fromMin(r.bus)}, train at ${fromMin(r.train)}.`; };
-    const cs=$("#ev-cat",m); if(cs){ cs.addEventListener("change",trInfo); $("#ev-tr",m).addEventListener("change",trInfo); ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo();
-      $("#ev-title",m).addEventListener("input",()=>{ if(isNew && /\blecture/i.test($("#ev-title",m).value) && cs.value!=="lecture" && S.categories.some(c=>c.id==="lecture")){ cs.value="lecture"; trInfo(); } }); }
+    const cs=$("#ev-cat",m), tb=$("#ev-tr",m); if(cs){ let prevCat = cs.value!=="lecture" ? cs.value : (S.categories.find(c=>c.id!=="lecture"&&c.id!=="travel")||{}).id;
+      cs.addEventListener("change",()=>{ if(cs.value!=="lecture"){ prevCat=cs.value; tb.checked=false; } trInfo(); });
+      tb.addEventListener("change",()=>{ if(tb.checked && S.categories.some(c=>c.id==="lecture")) cs.value="lecture"; else if(!tb.checked && cs.value==="lecture" && prevCat) cs.value=prevCat; trInfo(); });
+      ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo(); }
     const rs=$("#ev-rep",m); if(rs) rs.onchange=()=>{ const on=rs.value!=="none"; $("#ev-untilw",m).hidden=!on; $("#ev-dlab",m).textContent=on?"Starts":"Date"; };
     $("#evf",m).onsubmit=x=>{ x.preventDefault();
       const s=$("#ev-start",m).value, en=$("#ev-end",m).value;
@@ -1205,7 +1207,7 @@ function renderFree(v){
       </div>
       <div class="panel stack" id="travelPanel">
         <h3>Travel to lectures</h3>
-        <p class="small muted" style="margin:0">Anything in the Lecture colour group gets the bus you need to catch the train. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
+        <p class="small muted" style="margin:0">When you add something, tick "This is a lecture" and it gets the bus you need to catch the train. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
         <div class="row"><label class="f">Train leaves (minutes before the lecture)<input type="number" min="0" id="t-before" value="${S.travel.trainBefore}"></label><label class="f">Bus ride (minutes)<input type="number" min="0" id="t-ride" value="${S.travel.ride}"></label><label class="f">Spare time at the station (minutes)<input type="number" min="0" id="t-buf" value="${S.travel.buffer}"></label></div>
         <div class="row"><label class="f">From<input type="text" id="t-from" value="${esc(S.travel.from)}"></label><label class="f">To<input type="text" id="t-to" value="${esc(S.travel.to)}"></label></div>
         <label class="f">Bus times, Monday to Friday<textarea id="t-wk" rows="2">${esc(S.travel.times.weekday)}</textarea></label>
