@@ -287,10 +287,28 @@ function syncTravel(lec){
   if(!lec.lecture) return true;
   const r = travelFor(lec.date, lec.start);
   if(r.none || r.train<0) return false;
+  // days where an earlier lecture means she is already there
+  const there = [];
+  if((lec.repeat||"none")==="none"){ if(earlierLecture(lec, lec.date)) return true; }
+  else { const end = lec.until || ymd(addDays(new Date(), 400));
+    for(let d=parse(lec.date); ymd(d)<=end; d=addDays(d, lec.repeat==="biweekly"?14:7)){ const ds=ymd(d); if(earlierLecture(lec, ds)) there.push(ds); } }
   S.events.push({id:uid(), title:`Bus ${fromMin(r.bus)} · train ${fromMin(r.train)}`,
     date:lec.date, start:fromMin(r.bus), end:lec.start, cat:"travel", travelFor:lec.id,
-    repeat:lec.repeat||"none", until:lec.until, skip:[...(lec.skip||[])]});
+    repeat:lec.repeat||"none", until:lec.until, skip:[...(lec.skip||[]), ...there]});
   return true;
+}
+const earlierLecture = (lec, ds) => occOn(ds).some(x=>x.lecture && x.id!==lec.id && x.start<lec.start);
+// other things (not plan sessions) that overlap a time; ignore(x) leaves out the item itself and its own bus
+function clashesOn(ds, s, en, ignore){
+  return occOn(ds).filter(x=>!x.planId && !ignore(x) && toMin(x.start)<toMin(en) && toMin(x.end)>toMin(s));
+}
+// plan sessions still to come that overlap anything get their plan rescheduled; returns how many plans moved
+function fixPlanClashes(){
+  const today = todayStr(), hit = new Set();
+  for(const e of S.events){ if(!e.planId || e.done || e.date<today) continue;
+    if(clashesOn(e.date, e.start, e.end, ()=>false).length) hit.add(e.planId); }
+  for(const id of hit){ const p=planOf(id); if(p) schedulePlan(S,p); }
+  return hit.size;
 }
 function syncAllTravel(){
   S.events = S.events.filter(x=>!x.travelFor || S.events.some(l=>l.id===x.travelFor && l.lecture));
@@ -614,9 +632,11 @@ function renderGrid(body, dates){
     head+=`<div class="thead${ds===td?" today":""}" data-d="${ds}">${DOW[d.getDay()]}<b>${d.getDate()}</b></div>`;
     let inner="";
     for(const x of blocksOn(ds)){ const s=Math.max(x.s,H0*60), e=Math.min(x.e,H1*60); if(e>s) inner+=`<div class="blk" style="top:${y(s)}px;height:${y(e)-y(s)}px"><span>${esc(x.b.label)}</span></div>`; }
-    for(const ev of eventsOn(ds)){
+    const dayEvs = eventsOn(ds);
+    for(const ev of dayEvs){
       const s=Math.max(toMin(ev.start),H0*60), e=Math.max(toMin(ev.end),s+20);
-      inner+=`<button class="ev${ev.done?" done":""}" data-id="${ev.id}" data-o="${ev._occ||""}" style="top:${y(s)+1}px;height:${Math.max(y(e)-y(s)-2,18)}px;background:${colorOf(ev)}"><b>${ev._occ?"↻ ":""}${esc(ev.topic||ev.title)}</b><span class="t">${ev.start}–${ev.end}</span></button>`;
+      const clash = !ev.planId && dayEvs.some(x=>x!==ev && x.id!==ev.id && !x.planId && x.travelFor!==ev.id && ev.travelFor!==x.id && toMin(x.start)<toMin(ev.end) && toMin(x.end)>toMin(ev.start));
+      inner+=`<button class="ev${ev.done?" done":""}" data-id="${ev.id}" data-o="${ev._occ||""}" style="top:${y(s)+1}px;height:${Math.max(y(e)-y(s)-2,18)}px;background:${colorOf(ev)}"><b>${clash?"⚠ ":""}${ev._occ?"↻ ":""}${esc(ev.topic||ev.title)}</b><span class="t">${ev.start}–${ev.end}</span></button>`;
     }
     if(ds===td){ const n=new Date(); const m=n.getHours()*60+n.getMinutes(); if(m>=H0*60) inner+=`<div class="nowline" style="top:${y(m)}px"></div>`; }
     cols+=`<div class="col" data-d="${ds}" style="height:${(H1-H0)*HP}px">${inner}</div>`;
@@ -681,14 +701,17 @@ function openEvent(ev, date, start, occ){
   </form>`, (m, close) => {
     const check=()=>{ const ds=$("#ev-date",m).value, s=$("#ev-start",m).value, en=$("#ev-end",m).value; const w=$("#ev-warn",m);
       const hit = ds&&s&&en ? blocksOn(ds).find(x=>toMin(s)<x.e && toMin(en)>x.s) : null;
-      w.hidden=!hit; if(hit) w.textContent=`This falls in your free time ("${hit.b.label}"). You can still add it.`; };
+      const cl = ds&&s&&en ? clashesOn(ds,s,en,x=>(ev&&(x.id===ev.id||x.travelFor===ev.id))||(x.travelFor&&$("#ev-tr",m)&&$("#ev-tr",m).checked)) : [];
+      const msgs=[]; if(hit) msgs.push(`This falls in your free time ("${hit.b.label}").`);
+      if(cl.length) msgs.push(`⚠ This overlaps ${cl.map(x=>`${x.title} (${x.start}–${x.end})`).join(", ")}.`);
+      w.hidden=!msgs.length; w.textContent=msgs.join(" ")+(msgs.length?" You can still save it.":""); };
     ["#ev-date","#ev-start","#ev-end"].forEach(s=>$(s,m).addEventListener("input",check)); check();
     const trInfo=()=>{ const c=$("#ev-cat",m); if(!c) return; const on=$("#ev-tr",m).checked;
       const i=$("#ev-trinfo",m), ds=$("#ev-date",m).value, s=$("#ev-start",m).value;
       if(!on||!ds||!s){ i.hidden=true; return; }
       const r=travelFor(ds,s); i.hidden=false;
       i.textContent = r.none ? `Train at ${fromMin(Math.max(r.train,0))}, but no bus gets you to the station in time on this day. Add bus times in Free time & ${APP_SET}.` : `Bus at ${fromMin(r.bus)}, train at ${fromMin(r.train)}.`; };
-    const tb=$("#ev-tr",m); if(tb){ tb.addEventListener("change",trInfo); ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo(); }
+    const tb=$("#ev-tr",m); if(tb){ tb.addEventListener("change",trInfo); tb.addEventListener("change",check); ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo(); }
     const rs=$("#ev-rep",m); if(rs) rs.onchange=()=>{ const on=rs.value!=="none"; $("#ev-untilw",m).hidden=!on; $("#ev-dlab",m).textContent=on?"Starts":"Date"; };
     $("#evf",m).onsubmit=x=>{ x.preventDefault();
       const s=$("#ev-start",m).value, en=$("#ev-end",m).value;
@@ -705,13 +728,21 @@ function openEvent(ev, date, start, occ){
       let trMsg = "";
       if(!plan && !o.travelFor){ o.lecture = $("#ev-tr",m).checked || undefined;
         const had = S.events.some(x=>x.travelFor===o.id);
-        if(!syncTravel(o)) trMsg = ". No bus gets you to the train in time, so travel wasn't added";
-        else if(o.lecture){ const tv=S.events.find(x=>x.travelFor===o.id); trMsg = ` with your bus at ${tv.start}`; }
+        syncAllTravel(); const tv=S.events.find(x=>x.travelFor===o.id);
+        if(o.lecture && tv) trMsg = ` with your bus at ${tv.start}`;
+        else if(o.lecture && earlierLecture(o,o.date)) trMsg = ". No bus, you're already there for an earlier lecture";
+        else if(o.lecture) trMsg = ". No bus gets you to the train in time, so travel wasn't added";
         else if(had) trMsg = ". Travel removed"; }
+      const moved = fixPlanClashes();
+      if(moved) trMsg += `. Moved study sessions in ${moved} plan${moved>1?"s":""} so nothing overlaps`;
+      const own = x=>x.id===o.id||x.travelFor===o.id;
+      const tvs = S.events.filter(x=>x.travelFor===o.id && occursOn(x,o.date));
+      const cl = [o, ...tvs].flatMap(y=>clashesOn(o.date, y.start, y.end, own));
+      if(cl.length) trMsg += `. ⚠ Overlaps ${[...new Set(cl.map(x=>x.title))].join(", ")}`;
       save(); close(); render(); toast((isNew?(o.repeat&&o.repeat!=="none"?"Added, repeating "+(o.repeat==="weekly"?"every week":"every 2 weeks"):"Added"):"Saved")+trMsg);
     };
-    if(!isNew) $("#ev-del",m).onclick=()=>{ S.events=S.events.filter(x=>x!==ev && x.travelFor!==ev.id); save(); close(); render(); toast("Deleted"); };
-    const d1=$("#ev-del1",m); if(d1) d1.onclick=()=>{ ev.skip=[...(ev.skip||[]),occDate]; S.events.filter(x=>x.travelFor===ev.id).forEach(x=>x.skip=[...(x.skip||[]),occDate]); save(); close(); render(); toast("Deleted "+fmtDate(occDate)); };
+    if(!isNew) $("#ev-del",m).onclick=()=>{ S.events=S.events.filter(x=>x!==ev && x.travelFor!==ev.id); if(ev.lecture) syncAllTravel(); save(); close(); render(); toast("Deleted"); };
+    const d1=$("#ev-del1",m); if(d1) d1.onclick=()=>{ ev.skip=[...(ev.skip||[]),occDate]; S.events.filter(x=>x.travelFor===ev.id).forEach(x=>x.skip=[...(x.skip||[]),occDate]); if(ev.lecture) syncAllTravel(); save(); close(); render(); toast("Deleted "+fmtDate(occDate)); };
   });
 }
 
@@ -1250,7 +1281,7 @@ function renderFree(v){
     T.trainBefore=num("#t-before",90); T.ride=num("#t-ride",9); T.buffer=num("#t-buf",5);
     T.from=$("#t-from").value.trim()||T.from; T.to=$("#t-to").value.trim()||T.to;
     T.times={weekday:$("#t-wk").value.trim(), saturday:$("#t-sat").value.trim(), sunday:$("#t-sun").value.trim()};
-    const r=syncAllTravel(); save(); render();
+    const r=syncAllTravel(); fixPlanClashes(); save(); render();
     toast(r.n ? `Updated travel for ${r.n} lecture${r.n>1?"s":""}`+(r.miss?`. ${r.miss} ha${r.miss>1?"ve":"s"} no bus early enough`:"") : "Saved. Tick \"This is a lecture\" on a lecture to add its bus"); };
   $("#s-apply").onclick=()=>{ const a=$("#s-start").value, z=$("#s-end").value; if(!a||!z||toMin(z)<=toMin(a)){ toast("Latest has to be after earliest"); return; } S.settings.dayStart=a; S.settings.dayEnd=z; rescheduleAll(); save(); render(); toast("Plans rescheduled"); };
   $("#cats").querySelectorAll("[data-c]").forEach(r=>{ const c=catOf(r.dataset.c);
