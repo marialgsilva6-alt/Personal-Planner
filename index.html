@@ -251,7 +251,6 @@ const blank = () => ({
     {id:"work",name:"Work",color:"#0c8599"},
     {id:"personal",name:"Personal",color:"#e8590c"},
     {id:"health",name:"Health",color:"#2f9e44"},
-    {id:"lecture",name:"Lecture",color:"#c2255c"},
     {id:"travel",name:"Travel",color:"#868e96"}
   ],
   travel: TRAVEL_DEFAULT(),
@@ -264,7 +263,9 @@ function TRAVEL_DEFAULT(){ return {
 }; }
 function migrateTravel(st){
   if(!st.travel) st.travel = TRAVEL_DEFAULT();
-  if(!st.categories.some(c=>c.id==="lecture")) st.categories.push({id:"lecture",name:"Lecture",color:"#c2255c"});
+  // lectures used to be a colour group; now any event can be marked as a lecture
+  st.events.forEach(e=>{ if(e.cat==="lecture" && !e.noTravel && !e.travelFor) e.lecture=true; delete e.noTravel; });
+  if(!st.events.some(e=>e.cat==="lecture")) st.categories = st.categories.filter(c=>c.id!=="lecture");
   if(!st.categories.some(c=>c.id==="travel")) st.categories.push({id:"travel",name:"Travel",color:"#868e96"});
 }
 // ---------- travel to lectures ----------
@@ -283,7 +284,7 @@ function travelFor(ds, start){
 // rebuilds the linked bus/train event for one lecture; returns false if no bus fits
 function syncTravel(lec){
   S.events = S.events.filter(x=>x.travelFor!==lec.id);
-  if(lec.cat!=="lecture" || lec.noTravel) return true;
+  if(!lec.lecture) return true;
   const r = travelFor(lec.date, lec.start);
   if(r.none || r.train<0) return false;
   S.events.push({id:uid(), title:`Bus ${fromMin(r.bus)} · train ${fromMin(r.train)}`,
@@ -292,9 +293,9 @@ function syncTravel(lec){
   return true;
 }
 function syncAllTravel(){
-  S.events = S.events.filter(x=>!x.travelFor || S.events.some(l=>l.id===x.travelFor && l.cat==="lecture"));
+  S.events = S.events.filter(x=>!x.travelFor || S.events.some(l=>l.id===x.travelFor && l.lecture));
   let miss = 0, n = 0;
-  S.events.filter(e=>e.cat==="lecture").forEach(l=>{ if(l.noTravel) return; n++; if(!syncTravel(l)) miss++; });
+  S.events.filter(e=>e.lecture).forEach(l=>{ n++; if(!syncTravel(l)) miss++; });
   return {n, miss};
 }
 
@@ -671,7 +672,7 @@ function openEvent(ev, date, start, occ){
     </div>
     ${series&&!isNew?`<p class="small muted" style="margin:0">Changes here apply to every repeat.</p>`:""}
     <label class="f">Colour group<select id="ev-cat">${catOptions(e.cat)}</select></label>
-    <label class="catrow" id="ev-trw"${e.travelFor?" hidden":""}><input type="checkbox" id="ev-tr"${e.cat==="lecture"&&!e.noTravel?" checked":""}> This is a lecture (add my bus and train)</label>
+    <label class="catrow" id="ev-trw"${e.travelFor?" hidden":""}><input type="checkbox" id="ev-tr"${e.lecture?" checked":""}> This is a lecture (add my bus to the station in grey)</label>
     <p class="small muted" id="ev-trinfo" style="margin:0" hidden></p>
     ${e.travelFor?`<p class="small muted" style="margin:0">This is the travel for a lecture. It updates by itself when you change the lecture.</p>`:""}`}
     ${!isNew?`<label class="catrow"><input type="checkbox" id="ev-done"${isDone?" checked":""}> Mark ${series?"this one ("+fmtDate(occDate)+")":""} as done</label>`:""}
@@ -687,10 +688,7 @@ function openEvent(ev, date, start, occ){
       if(!on||!ds||!s){ i.hidden=true; return; }
       const r=travelFor(ds,s); i.hidden=false;
       i.textContent = r.none ? `Train at ${fromMin(Math.max(r.train,0))}, but no bus gets you to the station in time on this day. Add bus times in Free time & ${APP_SET}.` : `Bus at ${fromMin(r.bus)}, train at ${fromMin(r.train)}.`; };
-    const cs=$("#ev-cat",m), tb=$("#ev-tr",m); if(cs){ let prevCat = cs.value!=="lecture" ? cs.value : (S.categories.find(c=>c.id!=="lecture"&&c.id!=="travel")||{}).id;
-      cs.addEventListener("change",()=>{ if(cs.value!=="lecture"){ prevCat=cs.value; tb.checked=false; } trInfo(); });
-      tb.addEventListener("change",()=>{ if(tb.checked && S.categories.some(c=>c.id==="lecture")) cs.value="lecture"; else if(!tb.checked && cs.value==="lecture" && prevCat) cs.value=prevCat; trInfo(); });
-      ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo(); }
+    const tb=$("#ev-tr",m); if(tb){ tb.addEventListener("change",trInfo); ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo(); }
     const rs=$("#ev-rep",m); if(rs) rs.onchange=()=>{ const on=rs.value!=="none"; $("#ev-untilw",m).hidden=!on; $("#ev-dlab",m).textContent=on?"Starts":"Date"; };
     $("#evf",m).onsubmit=x=>{ x.preventDefault();
       const s=$("#ev-start",m).value, en=$("#ev-end",m).value;
@@ -705,10 +703,10 @@ function openEvent(ev, date, start, occ){
         else o.done=d; }
       if(isNew) S.events.push(o);
       let trMsg = "";
-      if(!plan && !o.travelFor){ if(o.cat==="lecture") o.noTravel = !$("#ev-tr",m).checked || undefined;
+      if(!plan && !o.travelFor){ o.lecture = $("#ev-tr",m).checked || undefined;
         const had = S.events.some(x=>x.travelFor===o.id);
         if(!syncTravel(o)) trMsg = ". No bus gets you to the train in time, so travel wasn't added";
-        else if(o.cat==="lecture" && !o.noTravel){ const tv=S.events.find(x=>x.travelFor===o.id); trMsg = ` with your bus at ${tv.start}`; }
+        else if(o.lecture){ const tv=S.events.find(x=>x.travelFor===o.id); trMsg = ` with your bus at ${tv.start}`; }
         else if(had) trMsg = ". Travel removed"; }
       save(); close(); render(); toast((isNew?(o.repeat&&o.repeat!=="none"?"Added, repeating "+(o.repeat==="weekly"?"every week":"every 2 weeks"):"Added"):"Saved")+trMsg);
     };
@@ -1207,7 +1205,7 @@ function renderFree(v){
       </div>
       <div class="panel stack" id="travelPanel">
         <h3>Travel to lectures</h3>
-        <p class="small muted" style="margin:0">When you add something, tick "This is a lecture" and it gets the bus you need to catch the train. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
+        <p class="small muted" style="margin:0">When you add or edit something on your timetable, tick "This is a lecture" and the bus you need to catch the train is added in grey. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
         <div class="row"><label class="f">Train leaves (minutes before the lecture)<input type="number" min="0" id="t-before" value="${S.travel.trainBefore}"></label><label class="f">Bus ride (minutes)<input type="number" min="0" id="t-ride" value="${S.travel.ride}"></label><label class="f">Spare time at the station (minutes)<input type="number" min="0" id="t-buf" value="${S.travel.buffer}"></label></div>
         <div class="row"><label class="f">From<input type="text" id="t-from" value="${esc(S.travel.from)}"></label><label class="f">To<input type="text" id="t-to" value="${esc(S.travel.to)}"></label></div>
         <label class="f">Bus times, Monday to Friday<textarea id="t-wk" rows="2">${esc(S.travel.times.weekday)}</textarea></label>
@@ -1253,7 +1251,7 @@ function renderFree(v){
     T.from=$("#t-from").value.trim()||T.from; T.to=$("#t-to").value.trim()||T.to;
     T.times={weekday:$("#t-wk").value.trim(), saturday:$("#t-sat").value.trim(), sunday:$("#t-sun").value.trim()};
     const r=syncAllTravel(); save(); render();
-    toast(r.n ? `Updated travel for ${r.n} lecture${r.n>1?"s":""}`+(r.miss?`. ${r.miss} ha${r.miss>1?"ve":"s"} no bus early enough`:"") : "Saved. Put lectures in the Lecture group to get travel"); };
+    toast(r.n ? `Updated travel for ${r.n} lecture${r.n>1?"s":""}`+(r.miss?`. ${r.miss} ha${r.miss>1?"ve":"s"} no bus early enough`:"") : "Saved. Tick \"This is a lecture\" on a lecture to add its bus"); };
   $("#s-apply").onclick=()=>{ const a=$("#s-start").value, z=$("#s-end").value; if(!a||!z||toMin(z)<=toMin(a)){ toast("Latest has to be after earliest"); return; } S.settings.dayStart=a; S.settings.dayEnd=z; rescheduleAll(); save(); render(); toast("Plans rescheduled"); };
   $("#cats").querySelectorAll("[data-c]").forEach(r=>{ const c=catOf(r.dataset.c);
     r.querySelector("input[type=color]").onchange=e=>{ c.color=e.target.value; save(); };
