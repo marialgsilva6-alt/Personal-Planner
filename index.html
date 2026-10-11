@@ -242,6 +242,7 @@ const SWATCH = ["#3b5bdb","#0c8599","#2f9e44","#e8590c","#c2255c","#7048e8","#b0
 
 // ---------- state ----------
 let S = null;
+const APP_SET = "settings";
 const blank = () => ({
   v:1, examples:false,
   settings:{ dayStart:"08:00", dayEnd:"21:00" },
@@ -249,10 +250,53 @@ const blank = () => ({
     {id:"study",name:"Study",color:"#3b5bdb"},
     {id:"work",name:"Work",color:"#0c8599"},
     {id:"personal",name:"Personal",color:"#e8590c"},
-    {id:"health",name:"Health",color:"#2f9e44"}
+    {id:"health",name:"Health",color:"#2f9e44"},
+    {id:"lecture",name:"Lecture",color:"#c2255c"},
+    {id:"travel",name:"Travel",color:"#868e96"}
   ],
+  travel: TRAVEL_DEFAULT(),
   events:[], plans:[], blocks:[], notes:[], sections:[], books:[], jobs:[]
 });
+function TRAVEL_DEFAULT(){ return {
+  trainBefore:90, buffer:5, ride:9,
+  from:"Highway, Marlborough Road (Stop MA)", to:"Grenfell Place (Maidenhead station)", route:"Carousel 127",
+  times:{ weekday:"06:52, 07:52, 08:52, 09:52, 10:52, 11:52, 12:52, 13:52, 14:52, 15:52, 16:52, 17:52, 18:52", saturday:"", sunday:"" }
+}; }
+function migrateTravel(st){
+  if(!st.travel) st.travel = TRAVEL_DEFAULT();
+  if(!st.categories.some(c=>c.id==="lecture")) st.categories.push({id:"lecture",name:"Lecture",color:"#c2255c"});
+  if(!st.categories.some(c=>c.id==="travel")) st.categories.push({id:"travel",name:"Travel",color:"#868e96"});
+}
+// ---------- travel to lectures ----------
+function busTimes(ds){
+  const dw = new Date(ds+"T12:00").getDay();
+  const key = dw===6 ? "saturday" : dw===0 ? "sunday" : "weekday";
+  return (S.travel.times[key]||"").split(/[^0-9:.]+/).map(x=>x.replace(".",":")).filter(x=>/^\d{1,2}:\d{2}$/.test(x)).map(toMin).sort((a,b)=>a-b);
+}
+// returns {bus, train} in minutes, or {train, none:true} when no bus is early enough
+function travelFor(ds, start){
+  const T = S.travel, train = toMin(start) - (+T.trainBefore||0);
+  const latest = train - (+T.buffer||0) - (+T.ride||0);
+  const ok = busTimes(ds).filter(b=>b<=latest);
+  return ok.length ? {bus:ok[ok.length-1], train} : {train, none:true};
+}
+// rebuilds the linked bus/train event for one lecture; returns false if no bus fits
+function syncTravel(lec){
+  S.events = S.events.filter(x=>x.travelFor!==lec.id);
+  if(lec.cat!=="lecture" || lec.noTravel) return true;
+  const r = travelFor(lec.date, lec.start);
+  if(r.none || r.train<0) return false;
+  S.events.push({id:uid(), title:`Bus ${fromMin(r.bus)} · train ${fromMin(r.train)}`,
+    date:lec.date, start:fromMin(r.bus), end:lec.start, cat:"travel", travelFor:lec.id,
+    repeat:lec.repeat||"none", until:lec.until, skip:[...(lec.skip||[])]});
+  return true;
+}
+function syncAllTravel(){
+  S.events = S.events.filter(x=>!x.travelFor || S.events.some(l=>l.id===x.travelFor && l.cat==="lecture"));
+  let miss = 0, n = 0;
+  S.events.filter(e=>e.cat==="lecture").forEach(l=>{ if(l.noTravel) return; n++; if(!syncTravel(l)) miss++; });
+  return {n, miss};
+}
 
 function seedExamples(st){
   const t = new Date(); t.setHours(0,0,0,0);
@@ -292,6 +336,7 @@ function save(){
 }
 function adopt(loaded){
   S = Object.assign(blank(), loaded);
+  migrateTravel(S);
   if(!loaded.sections) S.sections=[...new Set(S.notes.map(n=>n.section).filter(x=>x&&x!=="Inbox"&&x!=="Unsorted"))];
   S.notes.forEach(n=>{ if(!n.section||n.section==="Inbox") n.section="Unsorted"; });
 }
@@ -625,7 +670,10 @@ function openEvent(ev, date, start, occ){
       <label class="f" id="ev-untilw"${series?"":" hidden"}>Until (optional)<input type="date" id="ev-until" value="${e.until||""}"></label>
     </div>
     ${series&&!isNew?`<p class="small muted" style="margin:0">Changes here apply to every repeat.</p>`:""}
-    <label class="f">Colour group<select id="ev-cat">${catOptions(e.cat)}</select></label>`}
+    <label class="f">Colour group<select id="ev-cat">${catOptions(e.cat)}</select></label>
+    <label class="catrow" id="ev-trw"${e.cat==="lecture"?"":" hidden"}><input type="checkbox" id="ev-tr"${e.noTravel?"":" checked"}> Add my bus and train</label>
+    <p class="small muted" id="ev-trinfo" style="margin:0" hidden></p>
+    ${e.travelFor?`<p class="small muted" style="margin:0">This is the travel for a lecture. It updates by itself when you change the lecture.</p>`:""}`}
     ${!isNew?`<label class="catrow"><input type="checkbox" id="ev-done"${isDone?" checked":""}> Mark ${series?"this one ("+fmtDate(occDate)+")":""} as done</label>`:""}
     <p class="warn" id="ev-warn" hidden></p>
     <div class="actions" style="justify-content:space-between"><div class="actions">${!isNew?(series?`<button type="button" class="btn danger" id="ev-del1">Delete this one</button><button type="button" class="btn danger" id="ev-del">Delete all</button>`:`<button type="button" class="btn danger" id="ev-del">Delete</button>`):""}</div><button class="btn primary" type="submit">${isNew?"Add":"Save"}</button></div>
@@ -634,6 +682,13 @@ function openEvent(ev, date, start, occ){
       const hit = ds&&s&&en ? blocksOn(ds).find(x=>toMin(s)<x.e && toMin(en)>x.s) : null;
       w.hidden=!hit; if(hit) w.textContent=`This falls in your free time ("${hit.b.label}"). You can still add it.`; };
     ["#ev-date","#ev-start","#ev-end"].forEach(s=>$(s,m).addEventListener("input",check)); check();
+    const trInfo=()=>{ const c=$("#ev-cat",m); if(!c) return; const on=c.value==="lecture"; $("#ev-trw",m).hidden=!on;
+      const i=$("#ev-trinfo",m), ds=$("#ev-date",m).value, s=$("#ev-start",m).value;
+      if(!on||!$("#ev-tr",m).checked||!ds||!s){ i.hidden=true; return; }
+      const r=travelFor(ds,s); i.hidden=false;
+      i.textContent = r.none ? `Train at ${fromMin(Math.max(r.train,0))}, but no bus gets you to the station in time on this day. Add bus times in Free time & ${APP_SET}.` : `Bus at ${fromMin(r.bus)}, train at ${fromMin(r.train)}.`; };
+    const cs=$("#ev-cat",m); if(cs){ cs.addEventListener("change",trInfo); $("#ev-tr",m).addEventListener("change",trInfo); ["#ev-date","#ev-start"].forEach(q=>$(q,m).addEventListener("input",trInfo)); trInfo();
+      $("#ev-title",m).addEventListener("input",()=>{ if(isNew && /\blecture/i.test($("#ev-title",m).value) && cs.value!=="lecture" && S.categories.some(c=>c.id==="lecture")){ cs.value="lecture"; trInfo(); } }); }
     const rs=$("#ev-rep",m); if(rs) rs.onchange=()=>{ const on=rs.value!=="none"; $("#ev-untilw",m).hidden=!on; $("#ev-dlab",m).textContent=on?"Starts":"Date"; };
     $("#evf",m).onsubmit=x=>{ x.preventDefault();
       const s=$("#ev-start",m).value, en=$("#ev-end",m).value;
@@ -647,10 +702,16 @@ function openEvent(ev, date, start, occ){
         if((o.repeat||"none")!=="none"){ const set=new Set(o.doneDates||[]); d?set.add(occDate):set.delete(occDate); o.doneDates=[...set]; }
         else o.done=d; }
       if(isNew) S.events.push(o);
-      save(); close(); render(); toast(isNew?(o.repeat&&o.repeat!=="none"?"Added, repeating "+(o.repeat==="weekly"?"every week":"every 2 weeks"):"Added"):"Saved");
+      let trMsg = "";
+      if(!plan && !o.travelFor){ if(o.cat==="lecture") o.noTravel = !$("#ev-tr",m).checked || undefined;
+        const had = S.events.some(x=>x.travelFor===o.id);
+        if(!syncTravel(o)) trMsg = ". No bus gets you to the train in time, so travel wasn't added";
+        else if(o.cat==="lecture" && !o.noTravel){ const tv=S.events.find(x=>x.travelFor===o.id); trMsg = ` with your bus at ${tv.start}`; }
+        else if(had) trMsg = ". Travel removed"; }
+      save(); close(); render(); toast((isNew?(o.repeat&&o.repeat!=="none"?"Added, repeating "+(o.repeat==="weekly"?"every week":"every 2 weeks"):"Added"):"Saved")+trMsg);
     };
-    if(!isNew) $("#ev-del",m).onclick=()=>{ S.events=S.events.filter(x=>x!==ev); save(); close(); render(); toast("Deleted"); };
-    const d1=$("#ev-del1",m); if(d1) d1.onclick=()=>{ ev.skip=[...(ev.skip||[]),occDate]; save(); close(); render(); toast("Deleted "+fmtDate(occDate)); };
+    if(!isNew) $("#ev-del",m).onclick=()=>{ S.events=S.events.filter(x=>x!==ev && x.travelFor!==ev.id); save(); close(); render(); toast("Deleted"); };
+    const d1=$("#ev-del1",m); if(d1) d1.onclick=()=>{ ev.skip=[...(ev.skip||[]),occDate]; S.events.filter(x=>x.travelFor===ev.id).forEach(x=>x.skip=[...(x.skip||[]),occDate]); save(); close(); render(); toast("Deleted "+fmtDate(occDate)); };
   });
 }
 
@@ -1142,6 +1203,15 @@ function renderFree(v){
         <div class="row"><label class="f">Earliest<input type="time" id="s-start" value="${S.settings.dayStart}"></label><label class="f">Latest<input type="time" id="s-end" value="${S.settings.dayEnd}"></label></div>
         <button class="btn sm" id="s-apply" style="align-self:flex-start">Save and reschedule plans</button>
       </div>
+      <div class="panel stack" id="travelPanel">
+        <h3>Travel to lectures</h3>
+        <p class="small muted" style="margin:0">Anything in the Lecture colour group gets the bus you need to catch the train. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
+        <div class="row"><label class="f">Train leaves (minutes before the lecture)<input type="number" min="0" id="t-before" value="${S.travel.trainBefore}"></label><label class="f">Bus ride (minutes)<input type="number" min="0" id="t-ride" value="${S.travel.ride}"></label><label class="f">Spare time at the station (minutes)<input type="number" min="0" id="t-buf" value="${S.travel.buffer}"></label></div>
+        <div class="row"><label class="f">From<input type="text" id="t-from" value="${esc(S.travel.from)}"></label><label class="f">To<input type="text" id="t-to" value="${esc(S.travel.to)}"></label></div>
+        <label class="f">Bus times, Monday to Friday<textarea id="t-wk" rows="2">${esc(S.travel.times.weekday)}</textarea></label>
+        <div class="row"><label class="f">Saturday<textarea id="t-sat" rows="2" placeholder="e.g. 08:20, 09:20">${esc(S.travel.times.saturday)}</textarea></label><label class="f">Sunday<textarea id="t-sun" rows="2" placeholder="None">${esc(S.travel.times.sunday)}</textarea></label></div>
+        <button class="btn sm" id="t-apply" style="align-self:flex-start">Save and update all lectures</button>
+      </div>
       <div class="panel stack">
         <h3>Colour groups</h3>
         <div class="list" id="cats">${S.categories.map(c=>`<div class="catrow" data-c="${c.id}"><input type="color" value="${c.color}" aria-label="Colour for ${esc(c.name)}"><input type="text" value="${esc(c.name)}" aria-label="Name"></div>`).join("")}</div>
@@ -1176,6 +1246,12 @@ function renderFree(v){
   const bl=$("#blockList");
   bl.innerHTML=S.blocks.length?S.blocks.map(b=>`<div class="blockrow" data-b="${b.id}"><div><b>${esc(b.label)}</b><div class="small muted">${b.kind==="weekly"?"Every "+b.days.slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(d=>DOW[d]).join(", "):fmtDate(b.from)+(b.to&&b.to!==b.from?" to "+fmtDate(b.to):"")} · <span class="mono">${b.allDay?"all day":b.start+"–"+b.end}</span></div></div><button class="btn sm danger">Remove</button></div>`).join(""):`<div class="empty">No free time booked yet.</div>`;
   bl.querySelectorAll("[data-b] button").forEach(x=>x.onclick=()=>{ S.blocks=S.blocks.filter(b=>b.id!==x.closest("[data-b]").dataset.b); rescheduleAll(); save(); render(); toast("Removed"); });
+  $("#t-apply").onclick=()=>{ const T=S.travel, num=(q,d)=>{ const v=parseInt($(q).value,10); return isNaN(v)||v<0?d:v; };
+    T.trainBefore=num("#t-before",90); T.ride=num("#t-ride",9); T.buffer=num("#t-buf",5);
+    T.from=$("#t-from").value.trim()||T.from; T.to=$("#t-to").value.trim()||T.to;
+    T.times={weekday:$("#t-wk").value.trim(), saturday:$("#t-sat").value.trim(), sunday:$("#t-sun").value.trim()};
+    const r=syncAllTravel(); save(); render();
+    toast(r.n ? `Updated travel for ${r.n} lecture${r.n>1?"s":""}`+(r.miss?`. ${r.miss} ha${r.miss>1?"ve":"s"} no bus early enough`:"") : "Saved. Put lectures in the Lecture group to get travel"); };
   $("#s-apply").onclick=()=>{ const a=$("#s-start").value, z=$("#s-end").value; if(!a||!z||toMin(z)<=toMin(a)){ toast("Latest has to be after earliest"); return; } S.settings.dayStart=a; S.settings.dayEnd=z; rescheduleAll(); save(); render(); toast("Plans rescheduled"); };
   $("#cats").querySelectorAll("[data-c]").forEach(r=>{ const c=catOf(r.dataset.c);
     r.querySelector("input[type=color]").onchange=e=>{ c.color=e.target.value; save(); };
