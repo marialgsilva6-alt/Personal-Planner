@@ -682,6 +682,17 @@ function modal(title, html, onMount){
   onMount(root.querySelector(".modal"), close);
   const f=root.querySelector("input,textarea,select"); if(f) f.focus();
 }
+// deletes a colour group; anything in it moves to the group she picks
+function deleteCat(c){
+  const items=S.events.filter(e=>e.cat===c.id && !e.planId), others=S.categories.filter(x=>x.id!==c.id && x.id!=="travel");
+  const done=to=>{ S.events.forEach(e=>{ if(e.cat===c.id) e.cat=to; }); S.categories=S.categories.filter(x=>x!==c); save(); render(); toast(`Deleted ${c.name}`); };
+  if(!items.length){ done(others[0].id); return; }
+  modal(`Delete ${c.name}?`, `<form class="stack" id="dcf">
+    <p style="margin:0">${items.length} item${items.length>1?"s are":" is"} in this group. Which colour group should ${items.length>1?"they":"it"} move to?</p>
+    <label class="f">Move to<select id="dc-to">${others.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select></label>
+    <div class="actions" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary" type="submit">Delete group</button></div>
+  </form>`, (m, close)=>{ m.querySelectorAll("[data-close]").forEach(b=>b.onclick=close); $("#dcf",m).onsubmit=e=>{ e.preventDefault(); const to=$("#dc-to",m).value; close(); done(to); }; });
+}
 function catOptions(sel){ return S.categories.map(c=>`<option value="${c.id}"${c.id===sel?" selected":""}>${esc(c.name)}</option>`).join(""); }
 function openEvent(ev, date, start, occ){
   const isNew=!ev;
@@ -1261,7 +1272,7 @@ function renderFree(v){
       </div>
       <div class="panel stack">
         <h3>Colour groups</h3>
-        <div class="list" id="cats">${S.categories.map(c=>`<div class="catrow" data-c="${c.id}"><input type="color" value="${c.color}" aria-label="Colour for ${esc(c.name)}"><input type="text" value="${esc(c.name)}" aria-label="Name"></div>`).join("")}</div>
+        <div class="list" id="cats">${S.categories.map(c=>`<div class="catrow" data-c="${c.id}"><input type="color" value="${c.color}" aria-label="Colour for ${esc(c.name)}"><input type="text" value="${esc(c.name)}" aria-label="Name">${c.id!=="travel"&&S.categories.length>2?`<button class="btn ghost sm danger" data-del aria-label="Delete ${esc(c.name)}">Delete</button>`:""}</div>`).join("")}</div>
         <button class="btn sm" id="addCat" style="align-self:flex-start">+ Add group</button>
       </div>
       <div class="panel stack">
@@ -1302,7 +1313,8 @@ function renderFree(v){
   $("#s-apply").onclick=()=>{ const a=$("#s-start").value, z=$("#s-end").value; if(!a||!z||toMin(z)<=toMin(a)){ toast("Latest has to be after earliest"); return; } S.settings.dayStart=a; S.settings.dayEnd=z; rescheduleAll(); save(); render(); toast("Plans rescheduled"); };
   $("#cats").querySelectorAll("[data-c]").forEach(r=>{ const c=catOf(r.dataset.c);
     r.querySelector("input[type=color]").onchange=e=>{ c.color=e.target.value; save(); };
-    r.querySelector("input[type=text]").onchange=e=>{ c.name=e.target.value.trim()||c.name; save(); }; });
+    r.querySelector("input[type=text]").onchange=e=>{ c.name=e.target.value.trim()||c.name; save(); };
+    const del=r.querySelector("[data-del]"); if(del) del.onclick=()=>deleteCat(c); });
   $("#bk-down").onclick=downloadBackup;
   $("#bk-up").onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) restoreBackup(f); };
   $("#ai-f").onsubmit=e=>{ e.preventDefault(); const k=$("#ai-key").value.trim(); if(!k) return; lsSet(k,AI_KEY); aiNotes=true; render(); toast("Claude features are on"); };
