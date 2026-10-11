@@ -257,12 +257,13 @@ const blank = () => ({
   events:[], plans:[], blocks:[], notes:[], sections:[], books:[], jobs:[]
 });
 function TRAVEL_DEFAULT(){ return {
-  trainBefore:90, buffer:5, ride:9,
+  trainBefore:90, buffer:5, ride:9, home:60,
   from:"Highway, Marlborough Road (Stop MA)", to:"Grenfell Place (Maidenhead station)", route:"Carousel 127",
   times:{ weekday:"06:52, 07:52, 08:52, 09:52, 10:52, 11:52, 12:52, 13:52, 14:52, 15:52, 16:52, 17:52, 18:52", saturday:"", sunday:"" }
 }; }
 function migrateTravel(st){
   if(!st.travel) st.travel = TRAVEL_DEFAULT();
+  if(st.travel.home==null) st.travel.home = 60;
   // lectures used to be a colour group; now any event can be marked as a lecture
   st.events.forEach(e=>{ if(e.cat==="lecture" && !e.noTravel && !e.travelFor) e.lecture=true; delete e.noTravel; });
   if(!st.events.some(e=>e.cat==="lecture")) st.categories = st.categories.filter(c=>c.id!=="lecture");
@@ -293,9 +294,18 @@ function syncTravel(lec){
   else { const end = lec.until || ymd(addDays(new Date(), 400));
     for(let d=parse(lec.date); ymd(d)<=end; d=addDays(d, lec.repeat==="biweekly"?14:7)){ const ds=ymd(d); if(earlierLecture(lec, ds)) there.push(ds); } }
   S.events.push({id:uid(), title:`Bus ${fromMin(r.bus)} · train ${fromMin(r.train)}`,
-    date:lec.date, start:fromMin(r.bus), end:lec.start, cat:"travel", travelFor:lec.id,
+    date:lec.date, start:fromMin(r.bus), end:fromMin(Math.min(r.bus+10, toMin(lec.start))), cat:"travel", travelFor:lec.id,
     repeat:lec.repeat||"none", until:lec.until, skip:[...(lec.skip||[]), ...there]});
   return true;
+}
+// shaded travel time on a day: from the bus to the lecture, and getting home after the last lecture
+function travelShade(ds, st=S){
+  if(!st.travel) return [];
+  const day=occOn(ds,st), lecs=day.filter(x=>x.lecture), out=[];
+  for(const tv of day.filter(x=>x.travelFor)){ const L=lecs.find(l=>l.id===tv.travelFor); if(L) out.push({s:toMin(tv.end), e:toMin(L.start), b:{label:"Travel"}, travel:true}); }
+  if(lecs.length){ const last=lecs.reduce((a,b)=>toMin(b.end)>toMin(a.end)?b:a), s=toMin(last.end);
+    out.push({s, e:Math.min(1440, s+(+st.travel.home||0)), b:{label:"Travel home"}, travel:true}); }
+  return out.filter(x=>x.e>x.s);
 }
 const earlierLecture = (lec, ds) => occOn(ds).some(x=>x.lecture && x.id!==lec.id && x.start<lec.start);
 // other things (not plan sessions) that overlap a time; ignore(x) leaves out the item itself and its own bus
@@ -306,7 +316,8 @@ function clashesOn(ds, s, en, ignore){
 function fixPlanClashes(){
   const today = todayStr(), hit = new Set();
   for(const e of S.events){ if(!e.planId || e.done || e.date<today) continue;
-    if(clashesOn(e.date, e.start, e.end, ()=>false).length) hit.add(e.planId); }
+    const a=toMin(e.start), b=toMin(e.end);
+    if(clashesOn(e.date, e.start, e.end, ()=>false).length || travelShade(e.date).some(x=>a<x.e && b>x.s)) hit.add(e.planId); }
   for(const id of hit){ const p=planOf(id); if(p) schedulePlan(S,p); }
   return hit.size;
 }
@@ -355,7 +366,7 @@ function save(){
 }
 function adopt(loaded){
   S = Object.assign(blank(), loaded);
-  migrateTravel(S);
+  migrateTravel(S); syncAllTravel();
   if(!loaded.sections) S.sections=[...new Set(S.notes.map(n=>n.section).filter(x=>x&&x!=="Inbox"&&x!=="Unsorted"))];
   S.notes.forEach(n=>{ if(!n.section||n.section==="Inbox") n.section="Unsorted"; });
 }
@@ -415,7 +426,7 @@ function occOn(ds, st=S){
   return out;
 }
 function busyOn(dateStr, st){
-  const iv = blocksOn(dateStr,st).map(x=>[x.s,x.e]);
+  const iv = [...blocksOn(dateStr,st), ...travelShade(dateStr,st)].map(x=>[x.s,x.e]);
   for(const ev of occOn(dateStr,st)) iv.push([toMin(ev.start), toMin(ev.end)]);
   return iv;
 }
@@ -631,11 +642,12 @@ function renderGrid(body, dates){
     const ds=ymd(d);
     head+=`<div class="thead${ds===td?" today":""}" data-d="${ds}">${DOW[d.getDay()]}<b>${d.getDate()}</b></div>`;
     let inner="";
-    for(const x of blocksOn(ds)){ const s=Math.max(x.s,H0*60), e=Math.min(x.e,H1*60); if(e>s) inner+=`<div class="blk" style="top:${y(s)}px;height:${y(e)-y(s)}px"><span>${esc(x.b.label)}</span></div>`; }
-    const dayEvs = eventsOn(ds);
+    for(const x of [...blocksOn(ds), ...travelShade(ds)]){ const s=Math.max(x.s,H0*60), e=Math.min(x.e,H1*60); if(e>s) inner+=`<div class="blk" style="top:${y(s)}px;height:${y(e)-y(s)}px"><span>${esc(x.b.label)}</span></div>`; }
+    const dayEvs = eventsOn(ds), shade = travelShade(ds);
     for(const ev of dayEvs){
       const s=Math.max(toMin(ev.start),H0*60), e=Math.max(toMin(ev.end),s+20);
-      const clash = !ev.planId && dayEvs.some(x=>x!==ev && x.id!==ev.id && !x.planId && x.travelFor!==ev.id && ev.travelFor!==x.id && toMin(x.start)<toMin(ev.end) && toMin(x.end)>toMin(ev.start));
+      const clash = !ev.planId && dayEvs.some(x=>x!==ev && x.id!==ev.id && !x.planId && x.travelFor!==ev.id && ev.travelFor!==x.id && toMin(x.start)<toMin(ev.end) && toMin(x.end)>toMin(ev.start))
+        || (!ev.planId && !ev.travelFor && shade.some(x=>toMin(ev.start)<x.e && toMin(ev.end)>x.s));
       inner+=`<button class="ev${ev.done?" done":""}" data-id="${ev.id}" data-o="${ev._occ||""}" style="top:${y(s)+1}px;height:${Math.max(y(e)-y(s)-2,18)}px;background:${colorOf(ev)}"><b>${clash?"⚠ ":""}${ev._occ?"↻ ":""}${esc(ev.topic||ev.title)}</b><span class="t">${ev.start}–${ev.end}</span></button>`;
     }
     if(ds===td){ const n=new Date(); const m=n.getHours()*60+n.getMinutes(); if(m>=H0*60) inner+=`<div class="nowline" style="top:${y(m)}px"></div>`; }
@@ -644,9 +656,9 @@ function renderGrid(body, dates){
   let gut=""; for(let h=H0+1;h<H1;h++) gut+=`<div style="top:${(h-H0)*HP}px">${pad(h)}:00</div>`;
   const grid=`<div class="gridbox"><div class="tgrid ${day?"day":"week"}">${head}<div class="gutter" style="height:${(H1-H0)*HP}px">${gut}</div>${cols}</div></div>`;
   if(day){
-    const ds=ymd(dates[0]), evs=eventsOn(ds), bl=blocksOn(ds);
+    const ds=ymd(dates[0]), evs=eventsOn(ds), bl=[...blocksOn(ds), ...travelShade(ds)];
     body.innerHTML=`<div class="dayview">${grid}<div class="agenda"><h3>${fmtDate(ds)}</h3>${
-      bl.map(x=>`<div class="arow" style="cursor:default"><span class="bar" style="background:repeating-linear-gradient(45deg,var(--stripe) 0 2px,var(--stripe-bg) 2px 5px)"></span><div class="main"><b>${esc(x.b.label)}</b><span class="small muted mono">${x.b.allDay?"All day":fromMin(x.s)+"–"+fromMin(Math.min(x.e,1439))} · free time</span></div></div>`).join("")
+      bl.map(x=>`<div class="arow" style="cursor:default"><span class="bar" style="background:repeating-linear-gradient(45deg,var(--stripe) 0 2px,var(--stripe-bg) 2px 5px)"></span><div class="main"><b>${esc(x.b.label)}</b><span class="small muted mono">${x.b.allDay?"All day":fromMin(x.s)+"–"+fromMin(Math.min(x.e,1439))} · ${x.travel?"travel":"free time"}</span></div></div>`).join("")
     }${evs.length?evs.map(e=>`<button class="arow" data-id="${e.id}" data-o="${e._occ||""}"><span class="bar" style="background:${colorOf(e)}"></span><div class="main"><b>${esc(e.topic||e.title)}</b><span class="small muted mono">${e.start}–${e.end}${e.done?" · done":""}</span></div></button>`).join(""):`<div class="empty">Nothing booked. Tap the grid or + Add.</div>`}</div></div>`;
   } else body.innerHTML=grid;
   body.querySelectorAll("[data-id]").forEach(b=>b.onclick=ev=>{ ev.stopPropagation(); openEvent(S.events.find(x=>x.id===b.dataset.id), null, null, b.dataset.o||null); });
@@ -702,7 +714,9 @@ function openEvent(ev, date, start, occ){
     const check=()=>{ const ds=$("#ev-date",m).value, s=$("#ev-start",m).value, en=$("#ev-end",m).value; const w=$("#ev-warn",m);
       const hit = ds&&s&&en ? blocksOn(ds).find(x=>toMin(s)<x.e && toMin(en)>x.s) : null;
       const cl = ds&&s&&en ? clashesOn(ds,s,en,x=>(ev&&(x.id===ev.id||x.travelFor===ev.id))||(x.travelFor&&$("#ev-tr",m)&&$("#ev-tr",m).checked)) : [];
+      const th = ds&&s&&en&&!(ev&&ev.travelFor) ? travelShade(ds).find(x=>toMin(s)<x.e && toMin(en)>x.s) : null;
       const msgs=[]; if(hit) msgs.push(`This falls in your free time ("${hit.b.label}").`);
+      if(th) msgs.push(`⚠ This is during your ${th.b.label.toLowerCase()} (${fromMin(th.s)}–${fromMin(th.e)}).`);
       if(cl.length) msgs.push(`⚠ This overlaps ${cl.map(x=>`${x.title} (${x.start}–${x.end})`).join(", ")}.`);
       w.hidden=!msgs.length; w.textContent=msgs.join(" ")+(msgs.length?" You can still save it.":""); };
     ["#ev-date","#ev-start","#ev-end"].forEach(s=>$(s,m).addEventListener("input",check)); check();
@@ -739,6 +753,8 @@ function openEvent(ev, date, start, occ){
       const tvs = S.events.filter(x=>x.travelFor===o.id && occursOn(x,o.date));
       const cl = [o, ...tvs].flatMap(y=>clashesOn(o.date, y.start, y.end, own));
       if(cl.length) trMsg += `. ⚠ Overlaps ${[...new Set(cl.map(x=>x.title))].join(", ")}`;
+      const th = o.travelFor ? null : travelShade(o.date).find(x=>toMin(o.start)<x.e && toMin(o.end)>x.s);
+      if(th) trMsg += `. ⚠ It's during your ${th.b.label.toLowerCase()}`;
       save(); close(); render(); toast((isNew?(o.repeat&&o.repeat!=="none"?"Added, repeating "+(o.repeat==="weekly"?"every week":"every 2 weeks"):"Added"):"Saved")+trMsg);
     };
     if(!isNew) $("#ev-del",m).onclick=()=>{ S.events=S.events.filter(x=>x!==ev && x.travelFor!==ev.id); if(ev.lecture) syncAllTravel(); save(); close(); render(); toast("Deleted"); };
@@ -1236,8 +1252,8 @@ function renderFree(v){
       </div>
       <div class="panel stack" id="travelPanel">
         <h3>Travel to lectures</h3>
-        <p class="small muted" style="margin:0">When you add or edit something on your timetable, tick "This is a lecture" and the bus you need to catch the train is added in grey. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
-        <div class="row"><label class="f">Train leaves (minutes before the lecture)<input type="number" min="0" id="t-before" value="${S.travel.trainBefore}"></label><label class="f">Bus ride (minutes)<input type="number" min="0" id="t-ride" value="${S.travel.ride}"></label><label class="f">Spare time at the station (minutes)<input type="number" min="0" id="t-buf" value="${S.travel.buffer}"></label></div>
+        <p class="small muted" style="margin:0">When you add or edit something on your timetable, tick "This is a lecture" and the bus you need to catch the train is added as a 10-minute slot. The time travelling there and getting home is shaded, so plans never use it. Bus times are from the ${esc(S.travel.route)} timetable; check them if the timetable changes.</p>
+        <div class="row"><label class="f">Train leaves (minutes before the lecture)<input type="number" min="0" id="t-before" value="${S.travel.trainBefore}"></label><label class="f">Bus ride (minutes)<input type="number" min="0" id="t-ride" value="${S.travel.ride}"></label><label class="f">Spare time at the station (minutes)<input type="number" min="0" id="t-buf" value="${S.travel.buffer}"></label><label class="f">Getting home after the last lecture (minutes)<input type="number" min="0" id="t-home" value="${S.travel.home}"></label></div>
         <div class="row"><label class="f">From<input type="text" id="t-from" value="${esc(S.travel.from)}"></label><label class="f">To<input type="text" id="t-to" value="${esc(S.travel.to)}"></label></div>
         <label class="f">Bus times, Monday to Friday<textarea id="t-wk" rows="2">${esc(S.travel.times.weekday)}</textarea></label>
         <div class="row"><label class="f">Saturday<textarea id="t-sat" rows="2" placeholder="e.g. 08:20, 09:20">${esc(S.travel.times.saturday)}</textarea></label><label class="f">Sunday<textarea id="t-sun" rows="2" placeholder="None">${esc(S.travel.times.sunday)}</textarea></label></div>
@@ -1278,7 +1294,7 @@ function renderFree(v){
   bl.innerHTML=S.blocks.length?S.blocks.map(b=>`<div class="blockrow" data-b="${b.id}"><div><b>${esc(b.label)}</b><div class="small muted">${b.kind==="weekly"?"Every "+b.days.slice().sort((x,y)=>((x+6)%7)-((y+6)%7)).map(d=>DOW[d]).join(", "):fmtDate(b.from)+(b.to&&b.to!==b.from?" to "+fmtDate(b.to):"")} · <span class="mono">${b.allDay?"all day":b.start+"–"+b.end}</span></div></div><button class="btn sm danger">Remove</button></div>`).join(""):`<div class="empty">No free time booked yet.</div>`;
   bl.querySelectorAll("[data-b] button").forEach(x=>x.onclick=()=>{ S.blocks=S.blocks.filter(b=>b.id!==x.closest("[data-b]").dataset.b); rescheduleAll(); save(); render(); toast("Removed"); });
   $("#t-apply").onclick=()=>{ const T=S.travel, num=(q,d)=>{ const v=parseInt($(q).value,10); return isNaN(v)||v<0?d:v; };
-    T.trainBefore=num("#t-before",90); T.ride=num("#t-ride",9); T.buffer=num("#t-buf",5);
+    T.trainBefore=num("#t-before",90); T.ride=num("#t-ride",9); T.buffer=num("#t-buf",5); T.home=num("#t-home",60);
     T.from=$("#t-from").value.trim()||T.from; T.to=$("#t-to").value.trim()||T.to;
     T.times={weekday:$("#t-wk").value.trim(), saturday:$("#t-sat").value.trim(), sunday:$("#t-sun").value.trim()};
     const r=syncAllTravel(); fixPlanClashes(); save(); render();
