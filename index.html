@@ -243,6 +243,70 @@ textarea:focus,input:focus,select:focus{background:var(--surface);border-color:v
 .minis{display:flex;gap:10px;flex-wrap:wrap}
 .statrow{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
 .statrow b{color:var(--fg);font-family:var(--mono);font-weight:500}
+
+/* ---- warm frosted look: soft glowing background, glass cards, pastel sections ---- */
+:root{ --bg:#efe6dc; --surface:rgba(255,255,255,.62); --surface-solid:#fbf7f2; --surface-2:rgba(255,255,255,.7); --fg:#2b2622; --muted:#7a6f66; --line:rgba(120,100,85,.14);
+  --accent:#c0643a; --accent-fg:#fff; --warn:#b5462c; --stripe:rgba(150,120,100,.28); --stripe-bg:rgba(255,255,255,.25);
+  --card-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 8px 30px rgba(90,60,40,.10); --radius:22px;
+  --glow1:#f3c58f; --glow2:#9fb3c8; --glow3:#f1d9c4; --glow4:#c7a98e;
+  --t-peach:rgba(255,226,206,.62); --t-sage:rgba(222,238,214,.62); --t-lav:rgba(232,224,250,.62); --t-butter:rgba(255,243,200,.62); --t-rose:rgba(252,224,232,.62); --t-sky:rgba(218,234,250,.62) }
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){ --bg:#1c1a20; --surface:rgba(44,40,46,.62); --surface-solid:#2a262c; --surface-2:rgba(70,64,72,.55); --fg:#f3ece6; --muted:#b4a89e; --line:rgba(255,240,230,.10);
+  --accent:#e8935f; --accent-fg:#1c1a20; --stripe:rgba(255,230,210,.16); --stripe-bg:rgba(255,255,255,.03); --card-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 8px 30px rgba(0,0,0,.35);
+  --glow1:#6b4a2c; --glow2:#2c3a4c; --glow3:#4a3a33; --glow4:#3a2f2a;
+  --t-peach:rgba(110,70,50,.42); --t-sage:rgba(70,95,70,.42); --t-lav:rgba(85,75,115,.42); --t-butter:rgba(110,95,50,.42); --t-rose:rgba(115,65,80,.42); --t-sky:rgba(60,85,115,.42) }}
+:root[data-theme="dark"]{ --bg:#1c1a20; --surface:rgba(44,40,46,.62); --surface-solid:#2a262c; --surface-2:rgba(70,64,72,.55); --fg:#f3ece6; --muted:#b4a89e; --line:rgba(255,240,230,.10);
+  --accent:#e8935f; --accent-fg:#1c1a20; --stripe:rgba(255,230,210,.16); --stripe-bg:rgba(255,255,255,.03); --card-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 8px 30px rgba(0,0,0,.35);
+  --glow1:#6b4a2c; --glow2:#2c3a4c; --glow3:#4a3a33; --glow4:#3a2f2a;
+  --t-peach:rgba(110,70,50,.42); --t-sage:rgba(70,95,70,.42); --t-lav:rgba(85,75,115,.42); --t-butter:rgba(110,95,50,.42); --t-rose:rgba(115,65,80,.42); --t-sky:rgba(60,85,115,.42) }
+body{background:var(--bg)}
+body::before{content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;filter:blur(60px);
+  background:radial-gradient(40% 45% at 12% 85%,var(--glow1),transparent 70%),radial-gradient(45% 40% at 85% 15%,var(--glow2),transparent 70%),
+  radial-gradient(50% 50% at 60% 60%,var(--glow3),transparent 70%),radial-gradient(35% 35% at 95% 95%,var(--glow4),transparent 70%)}
+.panel,.plan,.note,.gridbox,.card,.blockrow,.arow,.banner,.modal{background:var(--surface);-webkit-backdrop-filter:blur(18px) saturate(1.2);backdrop-filter:blur(18px) saturate(1.2);border:1px solid rgba(255,255,255,.45);box-shadow:var(--card-shadow)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .panel,:root:not([data-theme="light"]) .plan,:root:not([data-theme="light"]) .note,:root:not([data-theme="light"]) .gridbox,:root:not([data-theme="light"]) .card,:root:not([data-theme="light"]) .blockrow,:root:not([data-theme="light"]) .arow,:root:not([data-theme="light"]) .banner,:root:not([data-theme="light"]) .modal{border-color:rgba(255,255,255,.07)}}
+.modal{background:var(--surface-solid)}
+.thead{background:transparent;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.col{border-left-color:var(--line);background-image:linear-gradient(var(--line) 1px,transparent 1px)}
+header.top{background:var(--surface);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.45);box-shadow:var(--card-shadow);border-radius:var(--radius);padding:10px 12px 10px 18px}
+h1{color:var(--accent);letter-spacing:-.02em}
+nav.tabs button[aria-selected="true"]{background:var(--surface-solid);color:var(--fg);box-shadow:0 2px 8px rgba(90,60,40,.12)}
+.btn{background:var(--surface-solid);border-color:transparent;box-shadow:0 1px 3px rgba(90,60,40,.10)}
+.btn.primary{background:var(--accent);color:var(--accent-fg)}
+.btn.ghost{box-shadow:none;background:transparent}
+.seg{border:0;border-radius:99px;background:var(--surface-2);padding:3px;gap:2px}
+.seg button{background:transparent;border-radius:99px}
+.seg button[aria-pressed="true"]{background:var(--surface-solid);color:var(--fg);box-shadow:0 1px 4px rgba(90,60,40,.12)}
+textarea,input[type=text],input[type=number],input[type=date],input[type=time],select{background:var(--surface-2)}
+/* month view as rounded tiles */
+.month{background:transparent;border:0;gap:8px;overflow:visible;box-shadow:none}
+.month .dow{background:transparent;text-align:center;text-transform:none;letter-spacing:0;font-size:.8rem}
+.month .dow:nth-child(7){color:var(--accent)}
+.mday{border-radius:16px;background:var(--surface);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.5);box-shadow:var(--card-shadow);min-height:92px}
+.mday:nth-child(7n){background:rgba(190,140,125,.28)}
+.mday.out{opacity:.45;background:var(--surface)}
+.mday.today{outline:2px solid var(--accent);outline-offset:-2px}
+.chip{border-radius:7px}
+/* home: pastel sections, always open */
+.card-h h3{display:flex;align-items:center;gap:8px;font-size:1.02rem}
+.card .ico{font-size:1.05rem;line-height:1}
+.card.t-peach{background:var(--t-peach)} .card.t-sage{background:var(--t-sage)} .card.t-lav{background:var(--t-lav)}
+.card.t-butter{background:var(--t-butter)} .card.t-rose{background:var(--t-rose)} .card.t-sky{background:var(--t-sky)}
+.card .open{border:0;background:none;padding:0;color:var(--accent);font-weight:600;font-size:.85rem;align-self:flex-start}
+.card .open:hover{text-decoration:underline}
+.card .hrow{border-bottom:1px solid var(--line);border-radius:0}
+.card .hrow:last-child{border-bottom:0}
+.hello{background:var(--surface);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.45);box-shadow:var(--card-shadow);border-radius:var(--radius);padding:20px 22px}
+.covers{display:flex;gap:10px;flex-wrap:wrap}
+.covers button{border:0;background:none;padding:0;display:flex;flex-direction:column;gap:4px;width:64px;text-align:left;cursor:pointer}
+.covers .cap{font-size:.7rem;line-height:1.2;color:var(--muted);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.weeknav button{background:var(--surface-solid)}
+
+/* soft pastel events: light tint of the group colour with a coloured edge */
+.ev,.chip{background:var(--c);color:#fff}
+@supports (background:color-mix(in srgb,red 50%,white)){
+  .ev,.chip{background:color-mix(in srgb,var(--c) 24%,var(--surface-solid));color:var(--fg);border-left:3px solid var(--c);box-shadow:0 1px 3px rgba(90,60,40,.08)}
+  .ev .t{opacity:.7}
+}
 </style>
 </head>
 <body>
@@ -648,36 +712,43 @@ function renderHome(v){
   const jc=k=>S.jobs.filter(j=>j.status===k).length;
   const notes=[...S.notes].sort((a,b)=>b.created-a.created).slice(0,3);
   v.innerHTML = `<div class="stack" style="gap:18px">
-    <div class="hello"><h2>${greeting()}</h2><span class="muted">${(n=>["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][n.getDay()]+" "+n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear())(new Date())}</span></div>
+    <div class="hello"><h2>${greeting()} 🌿</h2><span class="muted">${(n=>["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][n.getDay()]+" "+n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear())(new Date())}</span></div>
     <div class="home">
-      <section class="card">
-        <div class="card-h"><button class="go" data-go="calendar" data-day="1">Today</button><span class="small muted">${evs.length} item${evs.length===1?"":"s"}</span></div>
+      <section class="card t-peach">
+        <div class="card-h"><h3><span class="ico">🗓️</span>Today</h3><span class="small muted">${evs.length} item${evs.length===1?"":"s"}</span></div>
         <div>${rows.length?rows.map(r=>r.h).join(""):`<p class="muted" style="margin:0">Nothing booked today.${bl.some(x=>x.s<=0&&x.e>=1439)?" It's a rest day.":""}</p>`}</div>
-        ${nl?`<p class="small muted" style="margin:0">Next lecture: <b style="color:var(--fg)">${esc(nl.l.title)}</b>, ${nl.ds===td?"today":fmtDate(nl.ds)} at ${nl.l.start}${nl.bus?`. Bus at ${nl.bus.start}`:""}</p>`:""}
+        ${nl?`<p class="small muted" style="margin:0">🎓 Next lecture: <b style="color:var(--fg)">${esc(nl.l.title)}</b>, ${nl.ds===td?"today":fmtDate(nl.ds)} at ${nl.l.start}${nl.bus?`. 🚌 Bus at ${nl.bus.start}`:""}</p>`:""}
+        <button class="open" data-go="calendar" data-day="1">Open timetable</button>
       </section>
-      <section class="card">
-        <div class="card-h"><h3>To-do</h3><div class="weeknav"><button id="tw-prev" aria-label="Previous week">‹</button><span style="min-width:92px;text-align:center">${wkLabel}</span><button id="tw-next" aria-label="Next week">›</button></div></div>
+      <section class="card t-sage">
+        <div class="card-h"><h3><span class="ico">✅</span>To-do</h3><div class="weeknav"><button id="tw-prev" aria-label="Previous week">‹</button><span style="min-width:92px;text-align:center">${wkLabel}</span><button id="tw-next" aria-label="Next week">›</button></div></div>
         <div>${todos.length?todos.map(t=>`<label class="todo${t.done?" done":""}" data-t="${t.id}"><input type="checkbox"${t.done?" checked":""}><span>${esc(t.text)}</span><button type="button" class="x" aria-label="Remove">✕</button></label>`).join(""):`<p class="muted" style="margin:0">Nothing on the list for ${wkLabel.toLowerCase()} yet.</p>`}</div>
         ${prevLeft.length?`<button class="btn sm ghost" id="tw-carry" style="align-self:flex-start">Bring over ${prevLeft.length} unfinished from earlier weeks</button>`:""}
         <form class="todo-add" id="tw-f"><input type="text" id="tw-text" placeholder="Add a to-do" aria-label="New to-do"><button class="btn sm primary" type="submit">Add</button></form>
         ${todos.length?`<span class="small muted">${todos.length-left} of ${todos.length} done</span>`:""}
       </section>
-      <section class="card">
-        <div class="card-h"><button class="go" data-go="plans">Plans</button><span class="small muted">${S.plans.length}</span></div>
+      <section class="card t-lav">
+        <div class="card-h"><h3><span class="ico">🎯</span>Plans</h3><span class="small muted">${S.plans.length}</span></div>
         ${S.plans.length?S.plans.slice(0,4).map(p=>{ const pc=Math.min(100,Math.round(planDoneMin(S,p)/Math.max(1,p.hours*60)*100)); return `<button class="hrow" data-go="plans" style="flex-direction:column;align-items:stretch;gap:6px"><span style="display:flex;justify-content:space-between;gap:8px"><b>${esc(p.title)}</b><span class="small muted mono">${pc}%</span></span><span class="progress"><span style="display:block;height:100%;width:${pc}%;background:${p.color};border-radius:99px"></span></span><span class="small muted">Due ${fmtDate(p.deadline)}</span></button>`; }).join(""):`<p class="muted" style="margin:0">No plans yet. Describe a goal and it gets spread over your timetable.</p>`}
+        <button class="open" data-go="plans">Open plans</button>
       </section>
-      <section class="card">
-        <div class="card-h"><button class="go" data-go="notes">Notes</button><span class="small muted">${S.notes.length}</span></div>
+      <section class="card t-butter">
+        <div class="card-h"><h3><span class="ico">📝</span>Notes</h3><span class="small muted">${S.notes.length}</span></div>
         ${notes.length?notes.map(n=>`<button class="hrow" data-go="notes" data-sec="${esc(n.section||"")}"><span class="main"><b style="font-weight:500">${esc(n.text)}</b><span class="small muted">${esc(n.section||"Unsorted")}</span></span></button>`).join(""):`<p class="muted" style="margin:0">No notes yet.</p>`}
+        <button class="open" data-go="notes">Open notes</button>
       </section>
-      <section class="card">
-        <div class="card-h"><button class="go" data-go="reading">Reading</button><span class="small muted">${want} to read</span></div>
-        ${reading.length?`<div class="minis">${reading.slice(0,4).map(b=>`<button class="hrow" data-go="reading" style="width:auto;padding:0">${coverHTML(b,"sm")}<span class="main" style="max-width:140px"><b>${esc(b.title)}</b><span class="small muted">${esc(b.author||"")}</span></span></button>`).join("")}</div>`:`<p class="muted" style="margin:0">${want?`Nothing on the go. ${want} book${want>1?"s":""} waiting.`:"Your reading list is empty."}</p>`}
+      <section class="card t-rose">
+        <div class="card-h"><h3><span class="ico">📚</span>Reading</h3><span class="small muted">${want} to read</span></div>
+        ${reading.length?`<div><span class="small muted">Reading now</span>${reading.slice(0,3).map(b=>`<button class="hrow" data-go="reading">${coverHTML(b,"sm")}<span class="main"><b>${esc(b.title)}</b><span class="small muted">${esc(b.author||"")}</span></span></button>`).join("")}</div>`:""}
+        ${want?`<div class="stack" style="gap:8px"><span class="small muted">Want to read</span><div class="covers">${S.books.filter(b=>b.status==="want").sort((a,b)=>b.added-a.added).slice(0,8).map(b=>`<button data-go="reading" title="${esc(b.title)}">${coverHTML(b,"md")}<span class="cap">${esc(b.title)}</span></button>`).join("")}</div></div>`:""}
+        ${!reading.length&&!want?`<p class="muted" style="margin:0">Your reading list is empty.</p>`:""}
+        <button class="open" data-go="reading">Open reading list</button>
       </section>
-      <section class="card">
-        <div class="card-h"><button class="go" data-go="jobs">Jobs</button></div>
+      <section class="card t-sky">
+        <div class="card-h"><h3><span class="ico">💼</span>Jobs</h3></div>
         <div class="statrow"><span><b>${jc("todo")}</b> to apply</span><span><b>${jc("applied")}</b> applied</span><span><b>${jc("interview")}</b> interview</span><span><b>${jc("offer")}</b> offer</span></div>
         ${jobsDue.map(j=>`<button class="hrow" data-go="jobs"><span class="main"><b>${esc(j.role||"Job")}${j.company?" · "+esc(j.company):""}</b><span class="small muted">${j.deadline?"Apply by "+fmtDate(j.deadline):"No deadline"}</span></span></button>`).join("")}
+        <button class="open" data-go="jobs">Open jobs</button>
       </section>
     </div></div>`;
   v.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{ tab=b.dataset.go;
@@ -746,7 +817,7 @@ function renderMonth(body){
     if(i>=35 && d.getMonth()!==cursor.getMonth()) break;
     const evs=eventsOn(ds), cls=["mday"]; if(d.getMonth()!==cursor.getMonth()) cls.push("out"); if(ds===td) cls.push("today"); if(isAllDayBlocked(ds)) cls.push("blocked");
     h+=`<div class="${cls.join(" ")}" data-d="${ds}" tabindex="0" role="button" aria-label="${fmtDate(ds)}, ${evs.length} items"><span class="num">${d.getDate()}</span><div class="chips">${
-      evs.slice(0,3).map(e=>`<div class="chip${e.done?" done":""}" style="background:${colorOf(e)}">${esc(e.start)} ${esc(e.title)}</div>`).join("")
+      evs.slice(0,3).map(e=>`<div class="chip${e.done?" done":""}" style="--c:${colorOf(e)}">${esc(e.start)} ${esc(e.title)}</div>`).join("")
     }</div>${evs.length>3?`<span class="more">+${evs.length-3} more</span>`:""}</div>`;
   }
   body.innerHTML=`<div class="month">${h}</div>`;
@@ -768,7 +839,7 @@ function renderGrid(body, dates){
       const s=Math.max(toMin(ev.start),H0*60), e=Math.max(toMin(ev.end),s+20);
       const clash = !ev.planId && dayEvs.some(x=>x!==ev && x.id!==ev.id && !x.planId && x.travelFor!==ev.id && ev.travelFor!==x.id && toMin(x.start)<toMin(ev.end) && toMin(x.end)>toMin(ev.start))
         || (!ev.planId && !ev.travelFor && shade.some(x=>toMin(ev.start)<x.e && toMin(ev.end)>x.s));
-      inner+=`<button class="ev${ev.done?" done":""}" data-id="${ev.id}" data-o="${ev._occ||""}" style="top:${y(s)+1}px;height:${Math.max(y(e)-y(s)-2,18)}px;background:${colorOf(ev)}"><b>${clash?"⚠ ":""}${ev._occ?"↻ ":""}${esc(ev.topic||ev.title)}</b><span class="t">${ev.start}–${ev.end}</span></button>`;
+      inner+=`<button class="ev${ev.done?" done":""}" data-id="${ev.id}" data-o="${ev._occ||""}" style="top:${y(s)+1}px;height:${Math.max(y(e)-y(s)-2,18)}px;--c:${colorOf(ev)}"><b>${clash?"⚠ ":""}${ev._occ?"↻ ":""}${esc(ev.topic||ev.title)}</b><span class="t">${ev.start}–${ev.end}</span></button>`;
     }
     if(ds===td){ const n=new Date(); const m=n.getHours()*60+n.getMinutes(); if(m>=H0*60) inner+=`<div class="nowline" style="top:${y(m)}px"></div>`; }
     cols+=`<div class="col" data-d="${ds}" style="height:${(H1-H0)*HP}px">${inner}</div>`;
