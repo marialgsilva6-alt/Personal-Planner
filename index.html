@@ -689,6 +689,24 @@ function render(){
   else renderFree(v);
 }
 
+// keep the clock, "now" line and today's items current while the app stays open
+let lastDay = todayStr();
+function tick(){
+  if(!S || document.hidden) return;
+  const d = todayStr();
+  if(d!==lastDay){ if(ymd(cursor)===lastDay){ cursor=new Date(); cursor.setHours(0,0,0,0); } lastDay=d; }
+  const a = document.activeElement;
+  if($("#modalRoot").innerHTML || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return; // don't disturb typing
+  if(tab!=="home" && tab!=="calendar") return;
+  const gb=$(".gridbox"), sl=gb?gb.scrollLeft:0, sy=window.scrollY;
+  render();
+  const g2=$(".gridbox"); if(g2) g2.scrollLeft=sl; window.scrollTo(0,sy);
+}
+setInterval(tick, 30000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tick(); });
+window.addEventListener("focus", tick);
+window.addEventListener("pageshow", tick);
+
 // ---------- home ----------
 function greeting(){ const h=new Date().getHours(); return h<12?"Good morning":h<18?"Good afternoon":"Good evening"; }
 function nextLecture(){
@@ -712,7 +730,7 @@ function renderHome(v){
   const jc=k=>S.jobs.filter(j=>j.status===k).length;
   const notes=[...S.notes].sort((a,b)=>b.created-a.created).slice(0,3);
   v.innerHTML = `<div class="stack" style="gap:18px">
-    <div class="hello"><h2>${greeting()} 🌿</h2><span class="muted">${(n=>["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][n.getDay()]+" "+n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear())(new Date())}</span></div>
+    <div class="hello"><h2>${greeting()} 🌿</h2><span class="muted">${(n=>["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][n.getDay()]+" "+n.getDate()+" "+MONTHS[n.getMonth()]+" "+n.getFullYear()+" · "+pad(n.getHours())+":"+pad(n.getMinutes()))(new Date())}</span></div>
     <div class="home">
       <section class="card t-peach">
         <div class="card-h"><h3><span class="ico">🗓️</span>Today</h3><span class="small muted">${evs.length} item${evs.length===1?"":"s"}</span></div>

@@ -1,5 +1,5 @@
 // Keeps the app working offline: the app files are cached on install, book covers and fonts as they are used.
-const VERSION = "planner-v11";
+const VERSION = "planner-v12";
 const APP = ["./", "index.html", "ai.bundle.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
